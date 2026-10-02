@@ -1,0 +1,536 @@
+[
+  {
+    "id": "developers/77living-spaces",
+    "group": "Developers",
+    "label": "77LIVING SPACES",
+    "path": "/images/logos/developers/77living-spaces.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/8990",
+    "group": "Developers",
+    "label": "8990",
+    "path": "/images/logos/developers/8990.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/argus",
+    "group": "Developers",
+    "label": "ARGUS",
+    "path": "/images/logos/developers/argus.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/be-residences",
+    "group": "Developers",
+    "label": "BE RESIDENCES",
+    "path": "/images/logos/developers/be-residences.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/cebu-landdmasters",
+    "group": "Developers",
+    "label": "CEBU LANDDMASTERS",
+    "path": "/images/logos/developers/cebu-landdmasters.png",
+    "tone": "light",
+    "stage_path": "/images/logos/developers/cebu-landdmasters-on-dark.png"
+  },
+  {
+    "id": "developers/filinvest-b",
+    "group": "Developers",
+    "label": "FILINVEST B",
+    "path": "/images/logos/developers/filinvest-b.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/filinvest",
+    "group": "Developers",
+    "label": "FILINVEST",
+    "path": "/images/logos/developers/filinvest.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/golden-topper-b",
+    "group": "Developers",
+    "label": "GOLDEN TOPPER B",
+    "path": "/images/logos/developers/golden-topper-b.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/golden-topper",
+    "group": "Developers",
+    "label": "GOLDEN TOPPER",
+    "path": "/images/logos/developers/golden-topper.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/grandland",
+    "group": "Developers",
+    "label": "GRANDLAND",
+    "path": "/images/logos/developers/grandland.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/italpinas",
+    "group": "Developers",
+    "label": "ITALPINAS",
+    "path": "/images/logos/developers/italpinas.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/johndorf-ventures-corp",
+    "group": "Developers",
+    "label": "JOHNDORF VENTURES CORP",
+    "path": "/images/logos/developers/johndorf-ventures-corp.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/king-properties",
+    "group": "Developers",
+    "label": "KING PROPERTIES",
+    "path": "/images/logos/developers/king-properties.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/kisan-lu-land",
+    "group": "Developers",
+    "label": "KISAN LU LAND",
+    "path": "/images/logos/developers/kisan-lu-land.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/megaworld-b",
+    "group": "Developers",
+    "label": "MEGAWORLD B",
+    "path": "/images/logos/developers/megaworld-b.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/megaworld",
+    "group": "Developers",
+    "label": "MEGAWORLD",
+    "path": "/images/logos/developers/megaworld.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/ml-d-development-corp",
+    "group": "Developers",
+    "label": "ML & D DEVELOPMENT CORP",
+    "path": "/images/logos/developers/ml-d-development-corp.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/mld-dream-builders-inc",
+    "group": "Developers",
+    "label": "MLD Dream Builders Inc",
+    "path": "/images/logos/developers/mld-dream-builders-inc.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/priland",
+    "group": "Developers",
+    "label": "PRILAND",
+    "path": "/images/logos/developers/priland.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/primaryhomes-inc",
+    "group": "Developers",
+    "label": "PrimaryHomes, Inc",
+    "path": "/images/logos/developers/primaryhomes-inc.png",
+    "tone": "dark"
+  },
+  {
+    "id": "developers/primeworld-land-holdings-inc",
+    "group": "Developers",
+    "label": "Primeworld Land Holdings Inc",
+    "path": "/images/logos/developers/primeworld-land-holdings-inc.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/rtu-land-development-corp",
+    "group": "Developers",
+    "label": "RTU Land Development Corp",
+    "path": "/images/logos/developers/rtu-land-development-corp.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/sterling-land-residences-and-development-inc",
+    "group": "Developers",
+    "label": "Sterling Land Residences and Development Inc",
+    "path": "/images/logos/developers/sterling-land-residences-and-development-inc.png",
+    "tone": "light"
+  },
+  {
+    "id": "developers/vcdu-realty-corporation",
+    "group": "Developers",
+    "label": "VCDU Realty Corporation",
+    "path": "/images/logos/developers/vcdu-realty-corporation.png",
+    "tone": "light",
+    "stage_path": "/images/logos/developers/vcdu-realty-corporation-on-dark.png"
+  },
+  {
+    "id": "developers/wee-community-developers",
+    "group": "Developers",
+    "label": "Wee Community Developers",
+    "path": "/images/logos/developers/wee-community-developers.png",
+    "tone": "light"
+  },
+  {
+    "id": "fhi-global-property/fhi-branding-set-png-copies-01",
+    "group": "FHI Global Property",
+    "label": "FHI Branding 01",
+    "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-01.png",
+    "tone": "dark"
+  },
+  {
+    "id": "fhi-global-property/fhi-branding-set-png-copies-02",
+    "group": "FHI Global Property",
+    "label": "FHI Branding 02",
+    "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-02.png",
+    "tone": "dark"
+  },
+  {
+    "id": "fhi-global-property/fhi-branding-set-png-copies-03",
+    "group": "FHI Global Property",
+    "label": "FHI Branding 03",
+    "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-03.png",
+    "tone": "dark"
+  },
+  {
+    "id": "fhi-global-property/fhi-branding-set-png-copies-05",
+    "group": "FHI Global Property",
+    "label": "FHI Branding 05",
+    "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-05.png",
+    "tone": "light"
+  },
+  {
+    "id": "fhi-global-property/fhi-branding-set-png-copies-07",
+    "group": "FHI Global Property",
+    "label": "FHI Branding 07",
+    "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-07.png",
+    "tone": "light"
+  },
+  {
+    "id": "fhi-global-property/fhi-branding-set-png-copies-08",
+    "group": "FHI Global Property",
+    "label": "FHI Branding 08",
+    "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-08.png",
+    "tone": "light"
+  },
+  {
+    "id": "fhi-global-property/fhi-branding-set-png-copies-09",
+    "group": "FHI Global Property",
+    "label": "FHI Branding 09",
+    "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-09.png",
+    "tone": "light"
+  },
+  {
+    "id": "fire/fire-logo-black",
+    "group": "FIRE",
+    "label": "FIRE logo black",
+    "path": "/images/logos/fire/fire-logo-black.png",
+    "tone": "dark"
+  },
+  {
+    "id": "fire/fire-logo-white",
+    "group": "FIRE",
+    "label": "FIRE logo white",
+    "path": "/images/logos/fire/fire-logo-white.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/fh-accreditation-no-rae-2023-055-black",
+    "group": "Filipino Homes",
+    "label": "FH Accreditation No. RAE 2023 -055 Black",
+    "path": "/images/logos/filipino-homes/fh-accreditation-no-rae-2023-055-black.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/fh-accreditation-no-rae-2023-055-white",
+    "group": "Filipino Homes",
+    "label": "FH Accreditation No. RAE 2023 -055 White",
+    "path": "/images/logos/filipino-homes/fh-accreditation-no-rae-2023-055-white.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/fh-prc-black-logo-1",
+    "group": "Filipino Homes",
+    "label": "FH PRC black logo 1",
+    "path": "/images/logos/filipino-homes/fh-prc-black-logo-1.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/fh-prc-white-logo-1",
+    "group": "Filipino Homes",
+    "label": "FH PRC white logo 1",
+    "path": "/images/logos/filipino-homes/fh-prc-white-logo-1.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/fh-training-logo-black",
+    "group": "Filipino Homes",
+    "label": "FH Training logo black",
+    "path": "/images/logos/filipino-homes/fh-training-logo-black.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/fh-traning-logo-white",
+    "group": "Filipino Homes",
+    "label": "FH Traning logo white",
+    "path": "/images/logos/filipino-homes/fh-traning-logo-white.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-plus-logo",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes Plus logo",
+    "path": "/images/logos/filipino-homes/filipinohomes-plus-logo.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-logo-1",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes logo 1",
+    "path": "/images/logos/filipino-homes/filipinohomes-logo-1.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-logo-2",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes logo 2",
+    "path": "/images/logos/filipino-homes/filipinohomes-logo-2.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-logo-5",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes logo 5",
+    "path": "/images/logos/filipino-homes/filipinohomes-logo-5.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-logo-6",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes logo 6",
+    "path": "/images/logos/filipino-homes/filipinohomes-logo-6.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-logo-7",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes logo 7",
+    "path": "/images/logos/filipino-homes/filipinohomes-logo-7.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-magazine-logo",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes Magazine logo",
+    "path": "/images/logos/filipino-homes/filipinohomes-magazine-logo.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-logo-3",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes logo 3",
+    "path": "/images/logos/filipino-homes/filipinohomes-logo-3.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-logo-4",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes logo 4",
+    "path": "/images/logos/filipino-homes/filipinohomes-logo-4.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes/filipinohomes-logo-for-fb-posting",
+    "group": "Filipino Homes",
+    "label": "Filipinohomes logo for FB posting",
+    "path": "/images/logos/filipino-homes/filipinohomes-logo-for-fb-posting.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/healthcare-black",
+    "group": "Filipino Homes",
+    "label": "HealthCare black",
+    "path": "/images/logos/filipino-homes/healthcare-black.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes/healthcare-white",
+    "group": "Filipino Homes",
+    "label": "HealthCare white",
+    "path": "/images/logos/filipino-homes/healthcare-white.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes-cares/filipinohomes-care-black-logo-1",
+    "group": "Filipino Homes Cares",
+    "label": "Filipinohomes Care black logo 1",
+    "path": "/images/logos/filipino-homes-cares/filipinohomes-care-black-logo-1.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes-cares/filipinohomes-care-black-logo-2",
+    "group": "Filipino Homes Cares",
+    "label": "Filipinohomes Care black logo 2",
+    "path": "/images/logos/filipino-homes-cares/filipinohomes-care-black-logo-2.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes-cares/filipinohomes-care-logo",
+    "group": "Filipino Homes Cares",
+    "label": "Filipinohomes Care logo",
+    "path": "/images/logos/filipino-homes-cares/filipinohomes-care-logo.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes-cares/filipinohomes-care-white-logo-1",
+    "group": "Filipino Homes Cares",
+    "label": "Filipinohomes Care white logo 1",
+    "path": "/images/logos/filipino-homes-cares/filipinohomes-care-white-logo-1.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes-cares/filipinohomes-care-white-logo-2",
+    "group": "Filipino Homes Cares",
+    "label": "Filipinohomes Care white logo 2",
+    "path": "/images/logos/filipino-homes-cares/filipinohomes-care-white-logo-2.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes-cares/filipinohomes-healthcare-black-logo",
+    "group": "Filipino Homes Cares",
+    "label": "Filipinohomes HealthCare black logo",
+    "path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-black-logo.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes-cares/filipinohomes-healthcare-blue-logo",
+    "group": "Filipino Homes Cares",
+    "label": "Filipinohomes HealthCare blue logo",
+    "path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-blue-logo.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes-cares/filipinohomes-healthcare-white-logo",
+    "group": "Filipino Homes Cares",
+    "label": "Filipinohomes HealthCare white logo",
+    "path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-white-logo.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes-pin/filipinohomesflatlogo-black-black",
+    "group": "Filipino Homes Pin",
+    "label": "FilipinoHomesflatlogo black black",
+    "path": "/images/logos/filipino-homes-pin/filipinohomesflatlogo-black-black.png",
+    "tone": "dark"
+  },
+  {
+    "id": "filipino-homes-pin/filipinohomesflatlogo-white",
+    "group": "Filipino Homes Pin",
+    "label": "FilipinoHomesflatlogo white",
+    "path": "/images/logos/filipino-homes-pin/filipinohomesflatlogo-white.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes-pin/filipinohomes-pin",
+    "group": "Filipino Homes Pin",
+    "label": "Filipinohomes Pin",
+    "path": "/images/logos/filipino-homes-pin/filipinohomes-pin.png",
+    "tone": "light"
+  },
+  {
+    "id": "filipino-homes-pin/filipinohomes-plus-pin",
+    "group": "Filipino Homes Pin",
+    "label": "Filipinohomes Plus Pin",
+    "path": "/images/logos/filipino-homes-pin/filipinohomes-plus-pin.png",
+    "tone": "light"
+  },
+  {
+    "id": "global-partners/global-partner",
+    "group": "Global Partners",
+    "label": "global partner",
+    "path": "/images/logos/global-partners/global-partner.png",
+    "tone": "dark"
+  },
+  {
+    "id": "global-partners/global-partner-white",
+    "group": "Global Partners",
+    "label": "global partner white",
+    "path": "/images/logos/global-partners/global-partner-white.png",
+    "tone": "light"
+  },
+  {
+    "id": "global-realty/global-realty-dubai-logo-black-dark-gold",
+    "group": "Global Realty",
+    "label": "GLOBAL REALTY DUBAI LOGO BLACK DARK GOLD",
+    "path": "/images/logos/global-realty/global-realty-dubai-logo-black-dark-gold.png",
+    "tone": "dark"
+  },
+  {
+    "id": "global-realty/global-realty-dubai-logo-white-gold",
+    "group": "Global Realty",
+    "label": "GLOBAL REALTY DUBAI LOGO WHITE GOLD",
+    "path": "/images/logos/global-realty/global-realty-dubai-logo-white-gold.png",
+    "tone": "light"
+  },
+  {
+    "id": "leuterio-realty/leuterio-realty-logo-black",
+    "group": "Leuterio Realty",
+    "label": "Leuterio Realty logo black",
+    "path": "/images/logos/leuterio-realty/leuterio-realty-logo-black.png",
+    "tone": "dark"
+  },
+  {
+    "id": "leuterio-realty/leuterio-realty-logo-white",
+    "group": "Leuterio Realty",
+    "label": "Leuterio Realty logo white",
+    "path": "/images/logos/leuterio-realty/leuterio-realty-logo-white.png",
+    "tone": "light"
+  },
+  {
+    "id": "real-fh/real-fh-organization-logo-colored-fa-2",
+    "group": "Real FH",
+    "label": "REAL FH Organization Logo Colored FA 2",
+    "path": "/images/logos/real-fh/real-fh-organization-logo-colored-fa-2.png",
+    "tone": "dark"
+  },
+  {
+    "id": "rent-ph/rentph-house-logo-1",
+    "group": "Rent.ph",
+    "label": "RentPH House Logo 1",
+    "path": "/images/logos/rent-ph/rentph-house-logo-1.png",
+    "tone": "light"
+  },
+  {
+    "id": "rent-ph/rentph-house-logo-2",
+    "group": "Rent.ph",
+    "label": "RentPH House Logo 2",
+    "path": "/images/logos/rent-ph/rentph-house-logo-2.png",
+    "tone": "light"
+  },
+  {
+    "id": "rent-ph/rentph-new-colored-logo",
+    "group": "Rent.ph",
+    "label": "RentPh new colored logo",
+    "path": "/images/logos/rent-ph/rentph-new-colored-logo.png",
+    "tone": "light"
+  },
+  {
+    "id": "rent-ph/rentph-new-white-logo",
+    "group": "Rent.ph",
+    "label": "RentPh new white logo",
+    "path": "/images/logos/rent-ph/rentph-new-white-logo.png",
+    "tone": "light"
+  },
+  {
+    "id": "rentsouq/rentsouq-ae-logo",
+    "group": "RentSouq",
+    "label": "RENTSOUQ AE LOGO",
+    "path": "/images/logos/rentsouq/rentsouq-ae-logo.png",
+    "tone": "light"
+  }
+]

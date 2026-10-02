@@ -1,0 +1,244 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Enums\ParticipantStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\ImportParticipantsRequest;
+use App\Http\Requests\StoreParticipantRequest;
+use App\Http\Resources\ParticipantResource;
+use App\Models\Participant;
+use App\Models\Raffle;
+use App\Services\ParticipantImportService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+/**
+ * Participants of one raffle.
+ *
+ * Every route here is nested under /raffles/{raffle}, and every query is
+ * scoped to that raffle — a participant is never visible from another one.
+ */
+class ParticipantController extends Controller
+{
+    public function __construct(protected ParticipantImportService $imports) {}
+
+    public function index(Request $request, Raffle $raffle): JsonResponse
+    {
+        $this->authorize('viewAny', Participant::class);
+
+        $perPage = min(max((int) $request->integer('per_page', 25), 5), 200);
+
+        $participants = $raffle->participants()
+            ->search($request->string('search')->toString())
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
+            ->when($request->filled('category'), fn ($q) => $q->where('category', $request->string('category')->toString()))
+            ->orderBy($this->sortColumn($request), $request->string('direction')->toString() === 'desc' ? 'desc' : 'asc')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        return response()->json([
+            'data' => ParticipantResource::collection($participants->items()),
+            'meta' => [
+                'current_page' => $participants->currentPage(),
+                'last_page' => $participants->lastPage(),
+                'per_page' => $participants->perPage(),
+                'total' => $participants->total(),
+                'from' => $participants->firstItem(),
+                'to' => $participants->lastItem(),
+            ],
+            'filters' => [
+                'statuses' => ParticipantStatus::values(),
+                'categories' => $raffle->participants()
+                    ->whereNotNull('category')
+                    ->distinct()
+                    ->orderBy('category')
+                    ->limit(100)
+                    ->pluck('category'),
+            ],
+        ]);
+    }
+
+    public function store(StoreParticipantRequest $request, Raffle $raffle): JsonResponse
+    {
+        $this->authorize('create', Participant::class);
+
+        $participant = $raffle->participants()->create($request->validated() + [
+            'status' => $request->input('status', ParticipantStatus::Active->value),
+        ]);
+
+        return response()->json(['data' => new ParticipantResource($participant)], 201);
+    }
+
+    public function show(Raffle $raffle, Participant $participant): JsonResponse
+    {
+        $this->authorize('view', $participant);
+        $this->assertBelongsTo($raffle, $participant);
+
+        $participant->load(['winners.raffle:id,name,prize_name']);
+
+        return response()->json([
+            'data' => new ParticipantResource($participant),
+            'wins' => $participant->winners->map(fn ($winner) => [
+                'raffle' => $winner->raffle?->name,
+                'prize_name' => $winner->raffle?->prize_name,
+                'position' => $winner->position,
+                'drawn_at' => $winner->drawn_at?->toIso8601String(),
+            ]),
+        ]);
+    }
+
+    public function update(StoreParticipantRequest $request, Raffle $raffle, Participant $participant): JsonResponse
+    {
+        $this->authorize('update', $participant);
+        $this->assertBelongsTo($raffle, $participant);
+
+        $participant->update($request->validated());
+
+        return response()->json(['data' => new ParticipantResource($participant->refresh())]);
+    }
+
+    public function destroy(Raffle $raffle, Participant $participant): JsonResponse
+    {
+        $this->authorize('delete', $participant);
+        $this->assertBelongsTo($raffle, $participant);
+
+        if ($participant->winners()->exists()) {
+            return response()->json([
+                'message' => 'This participant has won a raffle and cannot be deleted. Disqualify them instead.',
+            ], 409);
+        }
+
+        $participant->delete();
+
+        return response()->json(['message' => 'Participant deleted.']);
+    }
+
+    /** Remove every participant from this raffle, so a fresh CSV can be imported. */
+    public function clear(Raffle $raffle): JsonResponse
+    {
+        $this->authorize('update', $raffle);
+
+        if ($raffle->winners()->exists()) {
+            return response()->json([
+                'message' => 'Winners have already been drawn for this raffle, so its participants cannot be cleared.',
+            ], 409);
+        }
+
+        $deleted = $raffle->participants()->delete();
+
+        return response()->json([
+            'message' => 'Participants cleared.',
+            'data' => ['deleted' => $deleted],
+        ]);
+    }
+
+    /** Parse and validate a CSV without writing anything. */
+    public function preview(ImportParticipantsRequest $request, Raffle $raffle): JsonResponse
+    {
+        $this->authorize('import', Participant::class);
+
+        try {
+            $preview = $this->imports->preview($raffle, $request->file('file'));
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        unset($preview['rows']);
+
+        return response()->json(['data' => $preview]);
+    }
+
+    public function import(ImportParticipantsRequest $request, Raffle $raffle): JsonResponse
+    {
+        $this->authorize('import', Participant::class);
+
+        try {
+            $import = $this->imports->import(
+                $raffle,
+                $request->file('file'),
+                $request->user(),
+                $request->input('on_duplicate', 'skip'),
+            );
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Import completed.',
+            'data' => [
+                'id' => $import->id,
+                'original_filename' => $import->original_filename,
+                'total_rows' => $import->total_rows,
+                'imported_rows' => $import->imported_rows,
+                'updated_rows' => $import->updated_rows,
+                'skipped_rows' => $import->skipped_rows,
+                'summary' => $import->summary,
+            ],
+        ], 201);
+    }
+
+    public function export(Request $request, Raffle $raffle): StreamedResponse
+    {
+        $this->authorize('viewAny', Participant::class);
+
+        $query = $raffle->participants()
+            ->search($request->string('search')->toString())
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
+            ->when($request->filled('category'), fn ($q) => $q->where('category', $request->string('category')->toString()))
+            ->orderBy('ticket_number');
+
+        $filename = $raffle->slug.'-participants-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['ticket_number', 'name', 'email', 'phone', 'category', 'status']);
+
+            $query->chunkById(1000, function ($chunk) use ($handle) {
+                foreach ($chunk as $participant) {
+                    fputcsv($handle, [
+                        // Prefixed so spreadsheet apps keep the leading zeros.
+                        "\t".$participant->ticket_number,
+                        $participant->name,
+                        $participant->email,
+                        $participant->phone,
+                        $participant->category,
+                        $participant->status->value,
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    public function stats(Raffle $raffle): JsonResponse
+    {
+        $this->authorize('viewAny', Participant::class);
+
+        return response()->json([
+            'data' => DB::table('participants')
+                ->where('raffle_id', $raffle->id)
+                ->selectRaw('status, count(*) as total')
+                ->groupBy('status')
+                ->pluck('total', 'status'),
+        ]);
+    }
+
+    /** Guards against /raffles/1/participants/{id of another raffle's participant}. */
+    protected function assertBelongsTo(Raffle $raffle, Participant $participant): void
+    {
+        abort_unless($participant->raffle_id === $raffle->id, 404);
+    }
+
+    protected function sortColumn(Request $request): string
+    {
+        $allowed = ['ticket_number', 'name', 'email', 'category', 'status', 'created_at'];
+        $sort = $request->string('sort')->toString();
+
+        return in_array($sort, $allowed, true) ? $sort : 'ticket_number';
+    }
+}

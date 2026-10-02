@@ -1,0 +1,389 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ *
+ * Design tokens — premium black + gold
+ * ------------------------------------------------------------------ */
+@theme {
+    --color-ink: #050505;
+    --color-ink-soft: #0a0a0a;
+    --color-panel: #111111;
+    --color-panel-raised: #171717;
+    --color-line: #1f1f1f;
+    --color-gold: #d4af37;
+    --color-gold-bright: #f5d76e;
+    --color-gold-deep: #8a6f1f;
+    --color-muted: #a1a1a1;
+    --color-muted-dim: #6b6b6b;
+
+    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-display: "Manrope", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-lux: "Cinzel", "Times New Roman", serif;
+    --font-script: "Cormorant Garamond", "Times New Roman", serif;
+
+    --shadow-gold-sm: 0 0 0 1px rgb(212 175 55 / 0.18), 0 8px 30px -12px rgb(212 175 55 / 0.35);
+    --shadow-gold: 0 0 0 1px rgb(212 175 55 / 0.28), 0 18px 60px -20px rgb(212 175 55 / 0.45);
+    --shadow-panel: 0 20px 60px -30px rgb(0 0 0 / 0.9);
+
+    --animate-shimmer: shimmer 2.6s linear infinite;
+    --animate-pulse-gold: pulse-gold 2.4s ease-in-out infinite;
+    --animate-float-up: float-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Stage spotlights swinging slowly from the top corners. */
+@keyframes beam-sweep-left {
+    0%, 100% { transform: rotate(-38deg); }
+    50% { transform: rotate(-14deg); }
+}
+
+@keyframes beam-sweep-right {
+    0%, 100% { transform: rotate(38deg); }
+    50% { transform: rotate(14deg); }
+}
+
+/* Gold dust rising and twinkling out. */
+@keyframes sparkle-drift {
+    0% { opacity: 0; transform: translateY(0) scale(0.5); }
+    20% { opacity: 1; }
+    60% { opacity: 0.8; transform: translateY(-40px) scale(1); }
+    100% { opacity: 0; transform: translateY(-80px) scale(0.6); }
+}
+
+/* The #LRNATCON2026 mark: a gentle float, a slow glow, and a band of
+ * light that crosses the lettering, then rests a while before the next. */
+@keyframes hashtag-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-0.35rem); }
+}
+
+@keyframes hashtag-glow {
+    0%, 100% { opacity: 0.35; transform: scale(0.96); }
+    50% { opacity: 0.8; transform: scale(1.04); }
+}
+
+@keyframes hashtag-sheen {
+    0% { transform: translateX(-120%) skewX(-18deg); }
+    35%, 100% { transform: translateX(320%) skewX(-18deg); }
+}
+
+@keyframes pulse-gold {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.03); }
+}
+
+@keyframes float-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ------------------------------------------------------------------ *
+ * Base
+ * ------------------------------------------------------------------ */
+@layer base {
+    * {
+        border-color: var(--color-line);
+    }
+
+    html {
+        -webkit-tap-highlight-color: transparent;
+        scrollbar-color: var(--color-gold-deep) var(--color-ink);
+    }
+
+    body {
+        background-color: var(--color-ink);
+        color: #fff;
+        font-family: var(--font-sans);
+        font-feature-settings: "cv02", "cv03", "cv04";
+    }
+
+    ::selection {
+        background: rgb(212 175 55 / 0.3);
+        color: #fff;
+    }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: var(--color-ink); }
+    ::-webkit-scrollbar-thumb {
+        background: #2a2418;
+        border-radius: 999px;
+        border: 2px solid var(--color-ink);
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--color-gold-deep); }
+
+    html.no-scroll,
+    html.no-scroll body { overflow: hidden; }
+
+    /* Numeric displays should never reflow as digits change. */
+    .tabular {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+    }
+}
+
+/* ------------------------------------------------------------------ *
+ * Components
+ * ------------------------------------------------------------------ */
+@layer components {
+    .panel {
+        background: linear-gradient(180deg, var(--color-panel-raised) 0%, var(--color-panel) 100%);
+        border: 1px solid var(--color-line);
+        border-radius: 1rem;
+        box-shadow: var(--shadow-panel);
+    }
+
+    .panel-gold {
+        border-color: rgb(212 175 55 / 0.28);
+        box-shadow: var(--shadow-gold-sm);
+    }
+
+    .gold-text {
+        background: linear-gradient(120deg, var(--color-gold-deep) 0%, var(--color-gold) 35%, var(--color-gold-bright) 55%, var(--color-gold) 75%, var(--color-gold-deep) 100%);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+
+    .gold-text-shimmer {
+        animation: var(--animate-shimmer);
+    }
+
+    /* The prize lettering: light on the left, running into gold on the
+     * right. The small end padding keeps italic script from being clipped. */
+    .prize-gradient {
+        background-image: linear-gradient(90deg, #ffffff 0%, #ffffff 30%, #fff6dc 48%, #f5d76e 72%, #d4af37 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        padding-inline-end: 0.12em;
+        filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.55)) drop-shadow(0 0 22px rgb(212 175 55 / 0.3));
+    }
+
+    /* Polished-metal lettering: a vertical foil gradient (light catching
+     * the top edge, a darker band through the middle). It stays still: a
+     * moving light sweep repainted every name each frame and made the wall lag. */
+    .lux-foil {
+        background-image: linear-gradient(180deg, #fff4c9 0%, #f5d76e 22%, #d4af37 46%, #8a6f1f 58%, #c9a33a 72%, #f7e3a0 100%);
+        background-repeat: no-repeat;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.55)) drop-shadow(0 0 28px rgb(212 175 55 / 0.28));
+    }
+
+    /* A hairline that fades out at both ends, with a small diamond at its
+     * centre; used to frame the headline. */
+    .lux-ornament {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        color: var(--color-gold);
+    }
+    .lux-ornament::before,
+    .lux-ornament::after {
+        content: "";
+        height: 1px;
+        flex: 1;
+    }
+    .lux-ornament::before { background: linear-gradient(90deg, transparent, rgb(212 175 55 / 0.7)); }
+    .lux-ornament::after { background: linear-gradient(270deg, transparent, rgb(212 175 55 / 0.7)); }
+
+    /* A cone of light hanging from its apex; it pivots there as it sweeps.
+     * Its soft edges come from a conic mask rather than a blur filter, and it
+     * is drawn once onto its own layer, so the sweep costs the screen nothing:
+     * a blurred, blended beam was redrawn every frame and made the wall lag. */
+    .stage-beam {
+        position: absolute;
+        top: -8vh;
+        width: 34vw;
+        height: 115vh;
+        transform-origin: 50% 0;
+        background: linear-gradient(to bottom, rgb(245 215 110 / 0.3) 0%, rgb(212 175 55 / 0.12) 45%, transparent 80%);
+        -webkit-mask-image: conic-gradient(from 162deg at 50% 0, transparent 0deg, black 9deg, black 27deg, transparent 36deg, transparent 360deg);
+        mask-image: conic-gradient(from 162deg at 50% 0, transparent 0deg, black 9deg, black 27deg, transparent 36deg, transparent 360deg);
+        will-change: transform;
+    }
+
+    .hashtag-float {
+        animation: hashtag-float 6s ease-in-out infinite;
+        will-change: transform;
+    }
+
+    .hashtag-glow {
+        background: radial-gradient(closest-side, rgb(212 175 55 / 0.32), rgb(212 175 55 / 0.1) 55%, transparent);
+        animation: hashtag-glow 6s ease-in-out infinite;
+        will-change: transform, opacity;
+    }
+
+    .hashtag-sheen {
+        background: linear-gradient(90deg, transparent 0%, rgb(255 248 220 / 0.85) 50%, transparent 100%);
+        animation: hashtag-sheen 6.5s cubic-bezier(0.45, 0, 0.25, 1) 1.8s infinite;
+        transform: translateX(-120%) skewX(-18deg);
+        will-change: transform;
+    }
+
+    .gold-dust {
+        position: absolute;
+        border-radius: 9999px;
+        background: radial-gradient(circle, #fff4c9 0%, #f5d76e 45%, transparent 70%);
+        box-shadow: 0 0 8px rgb(245 215 110 / 0.8);
+        opacity: 0;
+        animation: sparkle-drift linear infinite;
+        will-change: transform, opacity;
+    }
+
+    .gold-rule {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgb(212 175 55 / 0.55), transparent);
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        border-radius: 0.625rem;
+        padding: 0.625rem 1.125rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        transition: all 180ms cubic-bezier(0.22, 1, 0.36, 1);
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    .btn-gold {
+        background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-bright) 100%);
+        color: #120e02;
+        box-shadow: 0 10px 30px -14px rgb(212 175 55 / 0.8);
+    }
+
+    .btn-gold:hover:not(:disabled) {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+        box-shadow: 0 16px 40px -16px rgb(212 175 55 / 0.95);
+    }
+
+    .btn-outline {
+        border: 1px solid rgb(212 175 55 / 0.35);
+        color: var(--color-gold-bright);
+        background: rgb(212 175 55 / 0.05);
+    }
+
+    .btn-outline:hover:not(:disabled) {
+        background: rgb(212 175 55 / 0.12);
+        border-color: rgb(212 175 55 / 0.6);
+    }
+
+    .btn-ghost {
+        color: var(--color-muted);
+        border: 1px solid var(--color-line);
+        background: transparent;
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+        color: #fff;
+        border-color: #2e2e2e;
+        background: rgb(255 255 255 / 0.03);
+    }
+
+    .btn-danger {
+        border: 1px solid rgb(220 38 38 / 0.4);
+        color: #fca5a5;
+        background: rgb(220 38 38 / 0.08);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+        background: rgb(220 38 38 / 0.18);
+        border-color: rgb(220 38 38 / 0.7);
+    }
+
+    .input {
+        width: 100%;
+        border-radius: 0.625rem;
+        border: 1px solid var(--color-line);
+        background: rgb(0 0 0 / 0.45);
+        padding: 0.625rem 0.875rem;
+        font-size: 0.875rem;
+        color: #fff;
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .input::placeholder { color: var(--color-muted-dim); }
+
+    .input:focus {
+        outline: none;
+        border-color: rgb(212 175 55 / 0.55);
+        box-shadow: 0 0 0 3px rgb(212 175 55 / 0.12);
+    }
+
+    .label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--color-muted);
+        margin-bottom: 0.4rem;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        border-radius: 999px;
+        border: 1px solid;
+        padding: 0.2rem 0.625rem;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    /* The projector ticket readout. */
+    .ticket-display {
+        font-family: var(--font-display);
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        line-height: 1;
+    }
+}
+
+@layer utilities {
+    .glow-gold {
+        text-shadow:
+            0 0 18px rgb(212 175 55 / 0.55),
+            0 0 60px rgb(212 175 55 / 0.35),
+            0 0 120px rgb(212 175 55 / 0.2);
+    }
+
+    .glow-gold-soft {
+        text-shadow: 0 0 20px rgb(212 175 55 / 0.35);
+    }
+
+    .vignette {
+        background:
+            radial-gradient(ellipse 80% 60% at 50% 0%, rgb(212 175 55 / 0.10), transparent 70%),
+            radial-gradient(ellipse 70% 50% at 50% 100%, rgb(212 175 55 / 0.06), transparent 70%);
+    }
+}
+
+/* Respect users who ask for reduced motion, without breaking the reveal. */
+@media (prefers-reduced-motion: reduce) {
+    .gold-text-shimmer { animation: none; }
+    .stage-beam, .gold-dust { animation: none; }
+    .hashtag-float, .hashtag-glow, .hashtag-sheen { animation: none; }
+    .hashtag-sheen { opacity: 0; }
+    .gold-dust { opacity: 0.6; }
+}
