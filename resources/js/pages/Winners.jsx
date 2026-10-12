@@ -19,7 +19,7 @@ export default function Winners() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        api.get('/raffles', { params: { per_page: 100, include_archived: 1 } })
+        api.get('/raffles', { params: { per_page: 100, include_archived: 1, include_predraws: 1 } })
             .then(({ data }) => setRaffles(data.data))
             .catch(() => setRaffles([]));
     }, []);

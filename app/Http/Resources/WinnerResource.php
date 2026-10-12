@@ -17,7 +17,10 @@ class WinnerResource extends JsonResource
             'id' => $this->id,
             'ticket_number' => $this->ticket_number,
             'position' => (int) $this->position,
+            'prize_name' => $this->prize_name ?? $this->whenLoaded('prize', fn () => $this->prize?->prize_name),
             'drawn_at' => $this->drawn_at?->toIso8601String(),
+            // Day 1 (the 18th) or Day 2 (the 19th), in Philippine time.
+            'event_day' => \App\Support\EventDay::of($this->drawn_at),
             'raffle' => $this->whenLoaded('raffle', fn () => [
                 'id' => $this->raffle->id,
                 'name' => $this->raffle->name,

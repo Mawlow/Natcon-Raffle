@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-/** GET READY → 3 → 2 → 1 → DRAWING… */
-export default function Countdown({ from = 3, onTick, onComplete }) {
+/** GET READY → 5 → 4 → 3 → 2 → 1 → DRAWING… */
+export default function Countdown({ from = 5, onTick, onComplete }) {
     const [value, setValue] = useState(from);
 
     useEffect(() => {

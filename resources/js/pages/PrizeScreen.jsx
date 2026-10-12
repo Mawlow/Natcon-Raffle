@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api, { parseError } from '../lib/api';
-import { formatPrizeValue } from '../lib/format';
-import { useScreenPresence } from '../lib/displaySync';
+import { DISPLAY_TITLE, formatPrizeValue } from '../lib/format';
+import { openDisplayChannel, useScreenPresence } from '../lib/displaySync';
+import { withPrizeOnStage } from '../lib/prizes';
 import { useLogoSizes } from '../lib/logoSizes';
 import { useWallSwitch } from '../lib/wallSwitch';
 import LedPanel from '../components/display/LedPanel';
@@ -32,6 +33,17 @@ export default function PrizeScreen() {
 
     const [raffle, setRaffle] = useState(null);
     const [loadError, setLoadError] = useState(null);
+    // The main screen's draw, so a raffle with several prizes shows the one
+    // being drawn — and, while a winner is revealed, the one they won.
+    const [live, setLive] = useState(null);
+
+    useEffect(() => {
+        const channel = openDisplayChannel(raffleId, (message) => {
+            if (message?.type === 'state' && message.screen === 'main') setLive({ phase: message.phase, winners: message.winners ?? [] });
+        });
+        channel.post({ type: 'hello' });
+        return () => channel.close();
+    }, [raffleId]);
 
     const load = useCallback(async () => {
         try {
@@ -61,7 +73,7 @@ export default function PrizeScreen() {
             ) : !raffle ? (
                 <span className="m-auto h-8 w-8 animate-spin rounded-full border-2 border-gold/25 border-t-gold" />
             ) : (
-                <PrizeBody raffle={raffle} sizes={logoSizes} />
+                <PrizeBody raffle={live ? withPrizeOnStage(raffle, live.phase, live.winners) : raffle} sizes={logoSizes} />
             )}
         </LedPanel>
     );
@@ -104,13 +116,14 @@ export function PrizeBody({ raffle, sizes }) {
                         className="lux-foil mt-[2cqh] max-w-[88cqw] text-balance pl-[0.1em] font-lux font-semibold uppercase leading-[1.05]"
                         style={{ fontSize: 'min(5.1cqw, 9.4cqh)' }}
                     >
-                        {raffle.name}
+                        {DISPLAY_TITLE}
                     </motion.h1>
                 )}
 
-                {raffle.prize_type === 'item'
+                {/* Nothing until the prize is set in the Control Center. */}
+                {raffle.prize_name && (raffle.prize_type === 'item'
                     ? <ItemPrize name={raffle.prize_name} value={prizeValue} />
-                    : <CashPrize name={raffle.prize_name} value={prizeValue} />}
+                    : <CashPrize name={raffle.prize_name} value={prizeValue} />)}
             </div>
         </>
     );
@@ -139,19 +152,12 @@ function PrizeFrame({ children, className = '' }) {
 }
 
 /** Cash: the amount in engraved capitals, the prize name in script. */
+/** Cash: the amount and "CASH PRIZE" as one line — "₱1,000 CASH PRIZE". */
 function CashPrize({ name, value }) {
     return (
         <PrizeFrame>
-            {value && (
-                <>
-                    <p className="prize-gradient pl-[0.14em] font-lux font-bold uppercase leading-tight tracking-[0.14em]" style={{ fontSize: 'min(4.25cqw, 8cqh)' }}>
-                        {value}
-                    </p>
-                    <span className="block size-[0.9cqw] rotate-45 bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" aria-hidden="true" />
-                </>
-            )}
-            <p className="font-script font-semibold italic leading-tight tracking-[0.03em] prize-gradient" style={{ fontSize: 'min(4.25cqw, 8cqh)' }}>
-                {name}
+            <p className="prize-gradient pl-[0.14em] font-lux font-bold uppercase leading-tight tracking-[0.14em]" style={{ fontSize: 'min(4.25cqw, 8cqh)' }}>
+                {value ? `${value} CASH PRIZE` : name}
             </p>
         </PrizeFrame>
     );

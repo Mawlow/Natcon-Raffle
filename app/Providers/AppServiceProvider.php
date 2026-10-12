@@ -30,8 +30,11 @@ class AppServiceProvider extends ServiceProvider
             $raffleId = $request->route('raffle')?->id ?? 'none';
 
             return [
-                Limit::perMinute(30)->by('draw-user:'.($request->user()?->id ?? $request->ip())),
-                Limit::perMinute(30)->by('draw-raffle:'.$raffleId),
+                // Generous: the draw lock already lets only one draw run at a
+                // time, and a busy event (auto-runs, pre-draws, retries) must
+                // never be stopped by the limit.
+                Limit::perMinute(120)->by('draw-user:'.($request->user()?->id ?? $request->ip())),
+                Limit::perMinute(120)->by('draw-raffle:'.$raffleId),
             ];
         });
     }

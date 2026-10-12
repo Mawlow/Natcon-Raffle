@@ -7,7 +7,8 @@ const COLUMNS = [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'email', label: 'Email', sortable: true },
     { key: 'phone', label: 'Phone', sortable: false },
-    { key: 'category', label: 'Category', sortable: true },
+    { key: 'category', label: 'Tag', sortable: true },
+    { key: 'developers', label: 'Developers', sortable: false },
     { key: 'status', label: 'Status', sortable: true },
     { key: 'created_at', label: 'Added', sortable: true },
 ];
@@ -51,6 +52,9 @@ export default function ParticipantTable({ participants, sort, direction, onSort
                                     {participant.category ? (
                                         <span className="chip border-white/10 bg-white/5 text-muted">{participant.category}</span>
                                     ) : <span className="text-muted-dim">—</span>}
+                                </td>
+                                <td className="max-w-[16rem] truncate px-5 py-3 text-muted" title={participant.developers?.join(', ')}>
+                                    {participant.developers?.length ? participant.developers.join(', ') : <span className="text-muted-dim">—</span>}
                                 </td>
                                 <td className="px-5 py-3"><StatusChip status={participant.status} /></td>
                                 <td className="whitespace-nowrap px-5 py-3 text-muted-dim">{formatDate(participant.created_at)}</td>

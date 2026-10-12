@@ -27,6 +27,7 @@ class Participant extends Model
         'email',
         'phone',
         'category',
+        'developers',
         'status',
         'metadata',
         'import_batch_id',
@@ -36,6 +37,7 @@ class Participant extends Model
     {
         return [
             'status' => ParticipantStatus::class,
+            'developers' => 'array',
             'metadata' => 'array',
         ];
     }

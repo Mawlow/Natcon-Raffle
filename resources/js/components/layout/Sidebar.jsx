@@ -1,11 +1,12 @@
 import { Link, NavLink } from 'react-router-dom';
-import { BarChart3, Gift, History, MonitorPlay, ScrollText, X } from 'lucide-react';
+import { BarChart3, FileText, Gift, History, MonitorPlay, ScrollText, X } from 'lucide-react';
 
 const NAV = [
     { to: '/dashboard', label: 'Dashboard', icon: BarChart3, end: true },
-    { to: '/raffles', label: 'Raffles', icon: Gift },
+    { to: '/raffles', label: 'Raffle Files', icon: Gift },
     { to: '/prize-display', label: 'Prize Display', icon: MonitorPlay },
     { to: '/winners', label: 'Winner History', icon: History },
+    { to: '/reports', label: 'Winner Reports', icon: FileText },
     { to: '/audit-log', label: 'Audit Log', icon: ScrollText },
 ];
 

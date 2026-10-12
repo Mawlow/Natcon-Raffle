@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { InlineSpinner } from '../ui/LoadingState';
 
-const BLANK = { ticket_number: '', name: '', email: '', phone: '', category: '', status: 'ACTIVE' };
+const BLANK = { ticket_number: '', name: '', email: '', phone: '', category: '', developers: '', status: 'ACTIVE' };
 
 export default function ParticipantDialog({ open, participant, errors = {}, busy, onSave, onClose }) {
     const [form, setForm] = useState(BLANK);
@@ -18,6 +18,7 @@ export default function ParticipantDialog({ open, participant, errors = {}, busy
                 email: participant.email ?? '',
                 phone: participant.phone ?? '',
                 category: participant.category ?? '',
+                developers: (participant.developers ?? []).join(' | '),
                 status: participant.status ?? 'ACTIVE',
             }
             : BLANK);
@@ -33,6 +34,7 @@ export default function ParticipantDialog({ open, participant, errors = {}, busy
             email: form.email || null,
             phone: form.phone || null,
             category: form.category || null,
+            developers: form.developers.split('|').map((name) => name.trim()).filter(Boolean),
         });
     };
 
@@ -121,15 +123,27 @@ export default function ParticipantDialog({ open, participant, errors = {}, busy
                             </div>
 
                             <div>
-                                <label className="label" htmlFor="participant_category">Category</label>
+                                <label className="label" htmlFor="participant_category">Tag</label>
                                 <input
                                     id="participant_category"
                                     className="input"
                                     maxLength={64}
                                     value={form.category}
                                     onChange={(event) => set('category', event.target.value)}
-                                    placeholder="VISITOR"
+                                    placeholder="ELITE"
                                 />
+                            </div>
+
+                            <div className="sm:col-span-2">
+                                <label className="label" htmlFor="participant_developers">Developers</label>
+                                <input
+                                    id="participant_developers"
+                                    className="input"
+                                    value={form.developers}
+                                    onChange={(event) => set('developers', event.target.value)}
+                                    placeholder="Cebu Landmasters | Filinvest"
+                                />
+                                {errors.developers && <p className="mt-1.5 text-xs text-red-300">{errors.developers[0]}</p>}
                             </div>
 
                             <div>
@@ -140,7 +154,7 @@ export default function ParticipantDialog({ open, participant, errors = {}, busy
                                     value={form.status}
                                     onChange={(event) => set('status', event.target.value)}
                                 >
-                                    {['ACTIVE', 'WINNER', 'DISQUALIFIED', 'EXCLUDED'].map((status) => (
+                                    {['ACTIVE', 'ABSENT', 'WINNER', 'DISQUALIFIED', 'EXCLUDED'].map((status) => (
                                         <option key={status} value={status}>{status}</option>
                                     ))}
                                 </select>

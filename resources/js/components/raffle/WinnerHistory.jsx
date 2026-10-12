@@ -29,6 +29,7 @@ export default function WinnerHistory({ winners = [], showRaffle = false, showPa
                             {showRaffle && <th className="px-5 py-3.5 font-semibold">Raffle</th>}
                             {showRaffle && <th className="px-5 py-3.5 font-semibold">Prize</th>}
                             {showParticipant && <th className="px-5 py-3.5 font-semibold">Participant</th>}
+                            <th className="px-5 py-3.5 font-semibold">Day</th>
                             <th className="px-5 py-3.5 font-semibold">Drawn at</th>
                             <th className="px-5 py-3.5 font-semibold">Event</th>
                         </tr>
@@ -62,6 +63,11 @@ export default function WinnerHistory({ winners = [], showRaffle = false, showPa
                                         )}
                                     </td>
                                 )}
+                                <td className="whitespace-nowrap px-5 py-3.5">
+                                    {winner.event_day
+                                        ? <span className="chip border-gold/30 bg-gold/10 text-gold-bright">{winner.event_day}</span>
+                                        : <span className="text-muted-dim">—</span>}
+                                </td>
                                 <td className="whitespace-nowrap px-5 py-3.5 text-muted">{formatDateTime(winner.drawn_at)}</td>
                                 <td className="px-5 py-3.5">
                                     <code className="rounded bg-black/40 px-2 py-1 text-[0.68rem] text-muted-dim">

@@ -12,6 +12,15 @@ export function formatPrizeValue(value, currency = 'PHP') {
     return `${symbol}${rounded.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
+// The title every display screen shows, whatever the raffle is called.
+export const DISPLAY_TITLE = 'NATCON RAFFLE';
+
+/** A cash prize as the screens say it: "₱1,000 CASH PRIZE". */
+export function cashPrizeText(value, currency = 'PHP') {
+    const amount = formatPrizeValue(value, currency);
+    return amount ? `${amount} CASH PRIZE` : null;
+}
+
 export function formatNumber(value) {
     return Number(value ?? 0).toLocaleString();
 }
@@ -53,6 +62,7 @@ export const STATUS_STYLES = {
     WINNER: 'border-gold/50 text-gold-bright bg-gold/10',
     DISQUALIFIED: 'border-red-400/30 text-red-300 bg-red-400/10',
     EXCLUDED: 'border-white/15 text-muted bg-white/5',
+    ABSENT: 'border-amber-400/30 text-amber-300 bg-amber-400/10',
     SUCCESS: 'border-emerald-400/30 text-emerald-300 bg-emerald-400/10',
     FAILED: 'border-red-400/30 text-red-300 bg-red-400/10',
     NO_ELIGIBLE_PARTICIPANTS: 'border-amber-400/30 text-amber-300 bg-amber-400/10',

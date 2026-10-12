@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isLite } from '../../lib/liteMode';
 
 /**
  * Fireworks over the skyline: rockets climb with a spark trail and burst
@@ -37,6 +38,8 @@ export default function Fireworks({ className = '', mode = 'ambient', active = t
 
     useEffect(() => {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+        // Light mode (weaker screens): no fireworks, the heaviest thing per frame.
+        if (isLite()) return undefined;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');

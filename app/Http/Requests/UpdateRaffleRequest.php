@@ -34,6 +34,16 @@ class UpdateRaffleRequest extends FormRequest
             'logo_right' => ['nullable', 'string', Rule::in(RaffleLogos::ids())],
             'winners_count' => ['sometimes', 'required', 'integer', 'min:1', 'max:500'],
             'participant_pool' => ['nullable', 'string', 'max:160'],
+            // Who can win: null (everyone), or only the participants carrying
+            // one of the chosen tags, or qualified under one of the chosen developers.
+            'draw_filter' => ['nullable', 'array'],
+            'draw_filter.type' => ['required_with:draw_filter', Rule::in(['all', 'tag', 'developer', 'both'])],
+            'draw_filter.tags' => ['nullable', 'array', 'max:100'],
+            'draw_filter.tags.*' => ['string', 'max:160', 'distinct'],
+            'draw_filter.developers' => ['nullable', 'array', 'max:100'],
+            'draw_filter.developers.*' => ['string', 'max:160', 'distinct'],
+            'draw_filter.values' => ['nullable', 'array', 'max:100'],
+            'draw_filter.values.*' => ['string', 'max:160', 'distinct'],
             'status' => ['sometimes', Rule::in(RaffleStatus::values())],
             'allow_repeat_winners' => ['boolean'],
             'starts_at' => ['nullable', 'date'],

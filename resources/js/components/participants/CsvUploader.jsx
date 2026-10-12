@@ -76,8 +76,9 @@ export default function CsvUploader({ file, onFile, onClear, disabled }) {
                 <p className="text-sm font-semibold text-white">Drop a CSV here, or click to browse</p>
                 <p className="mt-2 max-w-sm text-xs leading-relaxed text-muted">
                     Any CSV with a ticket number column works — headed "Ticket No.", "Ticket #",
-                    "Ticket Number" and the like, even below title rows. Name, email, phone and
-                    category are picked up if present; other columns are kept as extra details.
+                    "Ticket Number", "Control No." and the like, even below title rows. Ticket Name
+                    (shown on the screens), email, phone, Tag and Qualified Developers (separated
+                    by |) are picked up if present; other columns are kept as extra details.
                 </p>
                 <p className="mt-3 text-[0.68rem] text-muted-dim">CSV up to 10 MB</p>
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ParticipantStatus;
 use App\Enums\RaffleStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreRaffleRequest;
@@ -12,6 +13,7 @@ use App\Http\Resources\WinnerResource;
 use App\Models\Raffle;
 use App\Models\RaffleSetting;
 use App\Services\RaffleDrawService;
+use App\Services\RaffleFileService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,8 +30,16 @@ class RaffleController extends Controller
         $perPage = min(max((int) $request->integer('per_page', 15), 5), 100);
 
         $raffles = Raffle::query()
-            ->withCount(['winners as winners_drawn_count', 'participants'])
+            ->withCount(['winners as winners_drawn_count', 'participants', 'predraws'])
+            // The Control Center's "All raffles": every raffle with its winners.
+            ->when($request->boolean('with_winners'), fn ($q) => $q->with(['winners.participant', 'winners.prize']))
             ->when(! $request->boolean('include_archived'), fn ($q) => $q->notArchived())
+            // Pre-draws have their own list (the Control Center's "Pre-drawn").
+            ->when(! $request->boolean('include_predraws'), fn ($q) => $q->where('is_predraw', false))
+            // One raffle file's raffles: the file's page and the Control Center's file picker.
+            ->when($request->filled('raffle_file_id'), fn ($q) => $q->where('raffle_file_id', $request->integer('raffle_file_id')))
+            // The Raffles page's "not in a file" list.
+            ->when($request->boolean('unfiled'), fn ($q) => $q->whereNull('raffle_file_id'))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
             ->when($request->filled('search'), function ($q) use ($request) {
                 $like = '%'.$request->string('search')->toString().'%';
@@ -55,8 +65,16 @@ class RaffleController extends Controller
     {
         $this->authorize('create', Raffle::class);
 
-        $raffle = DB::transaction(function () use ($request) {
-            $raffle = Raffle::create($request->safe()->except('settings') + [
+        $prizes = $request->input('prizes') ?? [];
+        $total = array_sum(array_column($prizes, 'winners_count'));
+
+        if ($total > RafflePrizeController::MAX_WINNERS) {
+            return response()->json(['message' => 'A raffle can have at most '.RafflePrizeController::MAX_WINNERS.' winners across all its prizes.'], 422);
+        }
+
+        $raffle = DB::transaction(function () use ($request, $prizes, $total) {
+            $raffle = Raffle::create(array_filter($request->safe()->except(['settings', 'prizes', 'ready']), fn ($value) => $value !== null) + [
+                'winners_count' => 1,
                 'slug' => $this->uniqueSlug($request->string('name')->toString()),
                 'status' => $request->input('status', RaffleStatus::Draft->value),
                 'created_by' => $request->user()->id,
@@ -64,8 +82,27 @@ class RaffleController extends Controller
 
             RaffleSetting::create(['raffle_id' => $raffle->id] + (array) $request->input('settings', []));
 
+            // Its prize list, set up with it; the number of winners follows the list.
+            foreach (array_values($prizes) as $order => $row) {
+                $raffle->prizes()->create(RafflePrizeController::attributes($row, $order));
+            }
+
+            if ($prizes !== []) {
+                $raffle->forceFill(['winners_count' => $total])->save();
+            }
+
             return $raffle;
         });
+
+        // Made in a raffle file: it starts with the file's participants.
+        if ($raffle->raffleFile) {
+            app(RaffleFileService::class)->importInto($raffle->raffleFile, $raffle, $request->user());
+        }
+
+        // Saved ready to draw: only once it has its prizes and participants.
+        if ($request->boolean('ready') && $prizes !== [] && $raffle->participants()->exists()) {
+            $raffle->forceFill(['status' => RaffleStatus::Ready])->save();
+        }
 
         return response()->json(['data' => new RaffleResource($this->loadRaffle($raffle))], 201);
     }
@@ -85,6 +122,11 @@ class RaffleController extends Controller
         $this->authorize('update', $raffle);
 
         $data = $request->safe()->except('settings');
+
+        // With a prize list, the number of winners comes from the prizes.
+        if ($raffle->prizes()->exists()) {
+            unset($data['winners_count']);
+        }
 
         if (isset($data['winners_count']) && $data['winners_count'] < $raffle->winners()->count()) {
             return response()->json([
@@ -114,9 +156,122 @@ class RaffleController extends Controller
     {
         $this->authorize('delete', $raffle);
 
-        $raffle->delete();
+        DB::transaction(function () use ($raffle) {
+            // Its pre-draws go with it: they were made from its participants,
+            // and would otherwise be left behind with their winners.
+            $predraws = Raffle::query()->where('is_predraw', true)->where('source_raffle_id', $raffle->id)->get();
+            $tickets = $raffle->stagedTicketNumbers();
+
+            foreach ($predraws as $predraw) {
+                $tickets = array_merge($tickets, $predraw->stagedTicketNumbers());
+                $predraw->delete();
+            }
+
+            $raffle->delete();
+
+            // Their pre-selected winners won nothing after all: back in play
+            // wherever they were shown as a winner only because of them.
+            Raffle::releaseTickets(array_values(array_unique($tickets)));
+        });
 
         return response()->json(['message' => 'Raffle deleted.']);
+    }
+
+    /**
+     * The next round of the event, straight from the Control Center: only its
+     * winners, prize and who can win are chosen. One prize makes a plain
+     * raffle drawn from that pool; several make a prize list. Everything else — logos, sound, how the draw runs —
+     * and the participants come from this raffle, so the new round is READY
+     * to draw at once. Anyone who already won here (or was left out of this
+     * round) can be left out of the next one too.
+     */
+    public function nextRound(Request $request, Raffle $raffle): JsonResponse
+    {
+        $this->authorize('create', Raffle::class);
+
+        $validated = $request->validate(RafflePrizeController::rules(1) + [
+            'name' => ['nullable', 'string', 'max:160'],
+            'leave_out_winners' => ['boolean'],
+            // This round's own logos; left out, they are copied from this raffle.
+            'logos' => ['sometimes', 'nullable', 'array', 'max:20'],
+            'logos.*' => ['string', 'distinct', \Illuminate\Validation\Rule::in(\App\Support\RaffleLogos::ids())],
+            'logo_left' => ['sometimes', 'nullable', 'string', \Illuminate\Validation\Rule::in(\App\Support\RaffleLogos::ids())],
+            'logo_right' => ['sometimes', 'nullable', 'string', \Illuminate\Validation\Rule::in(\App\Support\RaffleLogos::ids())],
+        ], RafflePrizeController::messages());
+
+        $total = array_sum(array_column($validated['prizes'], 'winners_count'));
+
+        if ($total > RafflePrizeController::MAX_WINNERS) {
+            return response()->json(['message' => 'A raffle can have at most '.RafflePrizeController::MAX_WINNERS.' winners across all its prizes.'], 422);
+        }
+
+        $leaveOut = (bool) ($validated['leave_out_winners'] ?? true);
+
+        $round = DB::transaction(function () use ($raffle, $validated, $total, $leaveOut) {
+            $name = trim($validated['name'] ?? '') ?: $raffle->name;
+            $first = $validated['prizes'][0];
+
+            $logos = array_intersect_key($validated, array_flip(['logos', 'logo_left', 'logo_right']));
+
+            $round = Raffle::create($logos + $raffle->only([
+                'description', 'logos', 'logo_left', 'logo_right', 'participant_pool', 'allow_repeat_winners',
+            ]) + [
+                'name' => $name,
+                'slug' => $this->uniqueSlug($name),
+                // The headline prize, for the lists outside the Control Center.
+                'prize_name' => trim($first['prize_name']),
+                'prize_type' => $first['prize_type'] ?? 'cash',
+                'prize_value' => $first['prize_value'] ?? null,
+                'prize_currency' => $first['prize_currency'] ?? 'PHP',
+                'winners_count' => $total,
+                // With one prize, who can win is the raffle's own pool.
+                'draw_filter' => count($validated['prizes']) === 1 ? Raffle::normalisePool($first['draw_filter'] ?? null) : null,
+                'status' => RaffleStatus::Draft->value,
+                'created_by' => request()->user()->id,
+            ]);
+
+            if (count($validated['prizes']) > 1) {
+                foreach ($validated['prizes'] as $order => $row) {
+                    $round->prizes()->create(RafflePrizeController::attributes($row, $order));
+                }
+            }
+
+            RaffleSetting::create(
+                ['raffle_id' => $round->id] +
+                ($raffle->settings?->only([
+                    'sound_countdown', 'sound_drawing', 'sound_winner', 'sound_celebration',
+                    'show_confetti', 'countdown_seconds', 'roll_duration_ms', 'draw_mode',
+                ]) ?? [])
+            );
+
+            // Disqualified and absent stay that way. With winners left out, this
+            // round's winners — and anyone an earlier round already left out —
+            // sit this one out too. Everyone else starts fresh.
+            $active = ParticipantStatus::Active->value;
+            $out = ParticipantStatus::Excluded->value;
+            $status = $leaveOut
+                ? "case when status in ('DISQUALIFIED', 'ABSENT') then status
+                       when status in ('WINNER', 'EXCLUDED') then '{$out}'
+                       when exists (select 1 from winners w where w.raffle_id = participants.raffle_id and w.ticket_number = participants.ticket_number) then '{$out}'
+                       else '{$active}' end"
+                : "case when status in ('DISQUALIFIED', 'ABSENT') then status else '{$active}' end";
+            $now = now()->toDateTimeString();
+
+            DB::table('participants')->insertUsing(
+                ['raffle_id', 'ticket_number', 'name', 'email', 'phone', 'category', 'developers', 'metadata', 'status', 'created_at', 'updated_at'],
+                DB::table('participants')
+                    ->where('raffle_id', $raffle->id)
+                    ->selectRaw("?, ticket_number, name, email, phone, category, developers, metadata, {$status}, ?, ?", [$round->id, $now, $now]),
+            );
+
+            if ($round->participants()->exists()) {
+                $round->update(['status' => RaffleStatus::Ready->value]);
+            }
+
+            return $round;
+        });
+
+        return response()->json(['data' => new RaffleResource($this->loadRaffle($round->refresh()))], 201);
     }
 
     /** Copy a raffle's configuration back to DRAFT — without participants, winners or draw history. */
@@ -126,14 +281,21 @@ class RaffleController extends Controller
 
         $copy = DB::transaction(function () use ($raffle) {
             $copy = Raffle::create($raffle->only([
-                'description', 'prize_name', 'prize_type', 'prize_value', 'prize_currency', 'logos', 'logo_left', 'logo_right',
-                'winners_count', 'participant_pool', 'allow_repeat_winners',
+                'raffle_file_id', 'description', 'prize_name', 'prize_type', 'prize_value', 'prize_currency', 'logos', 'logo_left', 'logo_right',
+                'winners_count', 'participant_pool', 'draw_filter', 'allow_repeat_winners',
             ]) + [
                 'name' => Str::limit($raffle->name.' (Copy)', 160, ''),
                 'slug' => $this->uniqueSlug($raffle->name.' copy'),
                 'status' => RaffleStatus::Draft->value,
                 'created_by' => request()->user()->id,
             ]);
+
+            foreach ($raffle->prizes as $prize) {
+                $copy->prizes()->create($prize->only([
+                    'sort_order', 'winners_count', 'prize_name', 'prize_type', 'prize_value',
+                    'prize_currency', 'draw_filter', 'include_previous_winners',
+                ]));
+            }
 
             RaffleSetting::create(
                 ['raffle_id' => $copy->id] +
@@ -145,6 +307,11 @@ class RaffleController extends Controller
 
             return $copy;
         });
+
+        // A copy made in a raffle file starts with the file's participants, like any raffle made there.
+        if ($copy->raffleFile) {
+            app(RaffleFileService::class)->importInto($copy->raffleFile, $copy, request()->user());
+        }
 
         return response()->json(['data' => new RaffleResource($this->loadRaffle($copy))], 201);
     }
@@ -167,6 +334,106 @@ class RaffleController extends Controller
         return response()->json(['data' => new RaffleResource($this->loadRaffle($raffle->refresh()))]);
     }
 
+    /**
+     * Put a raffle in a raffle file, or take it out (null). It keeps its own
+     * participants and winners; only where it is listed changes.
+     */
+    public function moveToFile(Request $request, Raffle $raffle): JsonResponse
+    {
+        $this->authorize('viewAny', Raffle::class);
+
+        $validated = $request->validate([
+            'raffle_file_id' => ['nullable', 'integer', 'exists:raffle_files,id'],
+        ]);
+
+        $raffle->update(['raffle_file_id' => $validated['raffle_file_id'] ?? null]);
+
+        return response()->json(['data' => new RaffleResource($this->loadRaffle($raffle->refresh()))]);
+    }
+
+    /**
+     * Put the chosen raffles in a set — 1 for the First Set, 2 for the
+     * Second, … — or take them out of their set (null). Sets only order the
+     * raffles for drawing; nothing about the draw itself changes.
+     */
+    public function assignSet(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Raffle::class);
+
+        $validated = $request->validate([
+            'raffle_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'raffle_ids.*' => ['integer', 'distinct', 'exists:raffles,id'],
+            'draw_set' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $updated = Raffle::query()->whereIn('id', $validated['raffle_ids'])->update(['draw_set' => $validated['draw_set'] ?? null]);
+
+        return response()->json(['message' => 'Sets saved.', 'data' => ['updated' => $updated]]);
+    }
+
+    /**
+     * Turn a raffle into a pre-draw (its winners are then picked before the
+     * event and revealed by the draw), or a pre-draw back into an ordinary
+     * raffle. Only before any winner is drawn. A pre-draw gives each winner
+     * their own prize, so a raffle's prize list goes; a pre-draw's picked
+     * winners go back into play when it becomes an ordinary raffle again.
+     */
+    public function convert(Request $request, Raffle $raffle): JsonResponse
+    {
+        $this->authorize('update', $raffle);
+
+        $validated = $request->validate(['to' => ['required', 'in:predraw,raffle']]);
+        $toPredraw = $validated['to'] === 'predraw';
+
+        if ($raffle->is_predraw === $toPredraw) {
+            return response()->json(['message' => $toPredraw ? 'This is already a pre-draw.' : 'This is already an ordinary raffle.'], 422);
+        }
+
+        if ($raffle->winners()->exists()) {
+            return response()->json([
+                'message' => 'This raffle already has winners. Clear them first (Clear winners & redraw), then change it.',
+            ], 409);
+        }
+
+        DB::transaction(function () use ($raffle, $toPredraw) {
+            $locked = Raffle::query()->whereKey($raffle->id)->lockForUpdate()->firstOrFail();
+            $hasParticipants = $locked->participants()->exists();
+
+            if ($toPredraw) {
+                $locked->prizes()->delete();
+                $locked->forceFill([
+                    'is_predraw' => true,
+                    // Pre-draws are listed on their own, not in the sets.
+                    'draw_set' => null,
+                    'winners_count' => 1,
+                    'status' => $hasParticipants ? RaffleStatus::Ready : RaffleStatus::Draft,
+                    'completed_at' => null,
+                ])->save();
+
+                return;
+            }
+
+            $tickets = $locked->stagedTicketNumbers();
+
+            $locked->forceFill([
+                'is_predraw' => false,
+                'source_raffle_id' => null,
+                'staged_winners' => null,
+                'winners_count' => 1,
+                // It needs its prizes again before it is ready to draw.
+                'status' => RaffleStatus::Draft,
+                'completed_at' => null,
+            ])->save();
+
+            Raffle::releaseTickets($tickets);
+        });
+
+        return response()->json([
+            'message' => $toPredraw ? 'Changed to a pre-draw.' : 'Changed to an ordinary raffle.',
+            'data' => new RaffleResource($this->loadRaffle($raffle->refresh())),
+        ]);
+    }
+
     /** Move a raffle through its lifecycle: ready / live / paused / completed / cancelled. */
     public function transition(Request $request, Raffle $raffle): JsonResponse
     {
@@ -187,6 +454,12 @@ class RaffleController extends Controller
 
         if ($raffle->status === RaffleStatus::Completed && $validated['action'] === 'start') {
             return response()->json(['message' => 'This raffle is already completed.'], 409);
+        }
+
+        if (in_array($validated['action'], ['ready', 'start'], true) && blank($raffle->prize_name) && $raffle->prizes()->doesntExist()) {
+            return response()->json([
+                'message' => 'Set the number of winners and the prize first.',
+            ], 422);
         }
 
         if (in_array($validated['action'], ['ready', 'start'], true) && $raffle->participants()->doesntExist()) {
@@ -227,7 +500,7 @@ class RaffleController extends Controller
     protected function loadRaffle(Raffle $raffle): Raffle
     {
         return $raffle->loadMissing(['settings', 'creator', 'winners'])
-            ->loadCount(['winners as winners_drawn_count', 'participants']);
+            ->loadCount(['winners as winners_drawn_count', 'participants', 'predraws']);
     }
 
     protected function uniqueSlug(string $name): string

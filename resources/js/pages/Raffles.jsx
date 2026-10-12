@@ -1,68 +1,57 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Gift, Plus, Search } from 'lucide-react';
-import { deleteRaffleConfirmation } from '../lib/deleteRaffle';
+import { ChevronDown, FolderOpen, FolderPlus } from 'lucide-react';
 import api, { parseError } from '../lib/api';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import RaffleCard from '../components/raffle/RaffleCard';
+import RaffleFiles from '../components/raffle/RaffleFiles';
+import RedrawDialog from '../components/raffle/RedrawDialog';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import LoadingState from '../components/ui/LoadingState';
 import EmptyState from '../components/ui/EmptyState';
-import Pagination from '../components/ui/Pagination';
+import { deleteRaffleConfirmation } from '../lib/deleteRaffle';
 import { useToast } from '../context/ToastContext';
 
-const STATUS_TABS = ['ALL', 'DRAFT', 'READY', 'LIVE', 'COMPLETED', 'CANCELLED'];
-
+/**
+ * The Raffles page: the raffle files. Each file is an event — its
+ * participants, its raffles ready to draw and its pre-draws — and opens on
+ * its own page. Raffles made before files existed are listed beneath, to
+ * open or move into a file.
+ */
 export default function Raffles() {
     const toast = useToast();
-    const navigate = useNavigate();
 
-    const [raffles, setRaffles] = useState([]);
-    const [meta, setMeta] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [status, setStatus] = useState('ALL');
-    const [search, setSearch] = useState('');
-    const [includeArchived, setIncludeArchived] = useState(false);
-    const [page, setPage] = useState(1);
+    const [files, setFiles] = useState(null);
+    const [unfiled, setUnfiled] = useState([]);
+    const [showUnfiled, setShowUnfiled] = useState(false);
+    const [creatingFile, setCreatingFile] = useState(false);
     const [confirm, setConfirm] = useState(null);
     const [busy, setBusy] = useState(false);
+    const [redrawing, setRedrawing] = useState(null);
 
     const load = useCallback(async () => {
-        setLoading(true);
-
         try {
-            const { data } = await api.get('/raffles', {
-                params: {
-                    page,
-                    search: search || undefined,
-                    status: status === 'ALL' ? undefined : status,
-                    include_archived: includeArchived ? 1 : undefined,
-                    per_page: 12,
-                },
-            });
-            setRaffles(data.data);
-            setMeta(data.meta);
+            const [fileList, raffleList] = await Promise.all([
+                api.get('/raffle-files'),
+                // Pre-draws too: one whose raffle was deleted is only listed here.
+                api.get('/raffles', { params: { unfiled: 1, include_predraws: 1, per_page: 100 } }),
+            ]);
+            setFiles(fileList.data.data);
+            setUnfiled(raffleList.data.data);
         } catch (error) {
-            toast.error(parseError(error, 'Raffles could not be loaded.').message);
-        } finally {
-            setLoading(false);
+            toast.error(parseError(error, 'The raffle files could not be loaded.').message);
+            setFiles((current) => current ?? []);
         }
-    }, [page, search, status, includeArchived, toast]);
+    }, [toast]);
 
-    useEffect(() => {
-        const timer = setTimeout(load, search ? 350 : 0);
-        return () => clearTimeout(timer);
-    }, [load, search]);
+    useEffect(() => { load(); }, [load]);
 
-    useEffect(() => { setPage(1); }, [status, search, includeArchived]);
-
-    const duplicate = async (raffle) => {
+    const moveToFile = async (raffle, file) => {
         try {
-            const { data } = await api.post(`/raffles/${raffle.id}/duplicate`);
-            toast.success(`"${data.data.name}" created as a draft.`);
-            navigate(`/raffles/${data.data.id}/edit`);
+            await api.post(`/raffles/${raffle.id}/file`, { raffle_file_id: file.id });
+            toast.success(`"${raffle.name}" moved to ${file.name}.`);
+            load();
         } catch (error) {
-            toast.error(parseError(error, 'The raffle could not be duplicated.').message);
+            toast.error(parseError(error, 'The raffle could not be moved.').message);
         }
     };
 
@@ -84,104 +73,83 @@ export default function Raffles() {
 
     return (
         <DashboardLayout
-            title="Raffles"
-            subtitle="Create, configure and run your draws"
+            title="Raffle files"
+            subtitle="Each file is an event: its participants, raffles ready to draw and pre-draws"
             actions={
-                <Link to="/raffles/new" className="btn btn-gold">
-                    <Plus size={16} />
-                    <span className="hidden sm:inline">New Raffle</span>
-                </Link>
+                <button type="button" className="btn btn-gold" onClick={() => setCreatingFile(true)}>
+                    <FolderPlus size={16} />
+                    <span className="hidden sm:inline">New Raffle File</span>
+                </button>
             }
         >
-            <div className="mb-6 flex flex-wrap items-center gap-3">
-                <div className="relative min-w-[14rem] flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-dim" size={15} />
-                    <input
-                        type="search"
-                        className="input pl-9"
-                        placeholder="Search raffles or prizes…"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                    />
-                </div>
+            {files === null && <LoadingState label="Loading raffle files" />}
 
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {STATUS_TABS.map((tab) => (
-                        <button
-                            key={tab}
-                            type="button"
-                            onClick={() => setStatus(tab)}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
-                                status === tab
-                                    ? 'border border-gold/45 bg-gold/12 text-gold-bright'
-                                    : 'border border-line text-muted hover:text-white'
-                            }`}
-                        >
-                            {tab}
-                        </button>
-                    ))}
-                </div>
-
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
-                    <input
-                        type="checkbox"
-                        className="h-3.5 w-3.5 rounded border-line bg-black/50 accent-[#d4af37]"
-                        checked={includeArchived}
-                        onChange={(event) => setIncludeArchived(event.target.checked)}
-                    />
-                    Show archived
-                </label>
-            </div>
-
-            {loading && <LoadingState label="Loading raffles" />}
-
-            {!loading && raffles.length === 0 && (
-                <EmptyState
-                    icon={Gift}
-                    title="No raffles yet"
-                    description="Create your first raffle, configure the prize and number of winners, then run the draw on the big screen."
-                    action={<Link to="/raffles/new" className="btn btn-gold"><Plus size={16} /> Create raffle</Link>}
-                />
-            )}
-
-            {!loading && raffles.length > 0 && (
+            {files !== null && (
                 <>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        {raffles.map((raffle, index) => (
-                            <RaffleCard
-                                key={raffle.id}
-                                raffle={raffle}
-                                delay={index * 0.04}
-                                onDuplicate={duplicate}
-                                onArchive={(target) => setConfirm({
-                                    title: 'Archive this raffle?',
-                                    description: `"${target.name}" will be hidden from the active list. Its winners and audit trail are kept.`,
-                                    confirmLabel: 'Archive',
-                                    successMessage: 'Raffle archived.',
-                                    run: () => api.post(`/raffles/${target.id}/archive`),
-                                })}
-                                onRestore={(target) => setConfirm({
-                                    title: 'Restore this raffle?',
-                                    description: `"${target.name}" will return to the active list.`,
-                                    confirmLabel: 'Restore',
-                                    tone: 'gold',
-                                    successMessage: 'Raffle restored.',
-                                    run: () => api.post(`/raffles/${target.id}/restore`),
-                                })}
-                                onDelete={(target) => setConfirm({
-                                    ...deleteRaffleConfirmation(target),
-                                    successMessage: 'Raffle deleted.',
-                                    run: () => api.delete(`/raffles/${target.id}`),
-                                })}
-                            />
-                        ))}
-                    </div>
+                    <RaffleFiles files={files} creating={creatingFile} onCreatingChange={setCreatingFile} />
 
-                    <div className="mt-6">
-                        <Pagination meta={meta} onChange={setPage} />
-                    </div>
+                    {files.length === 0 && !creatingFile && (
+                        <EmptyState
+                            icon={FolderOpen}
+                            title="No raffle files yet"
+                            description="Create a raffle file for your event, e.g. NATCON 2026. Upload its participants once, then make its raffles and pre-draws inside it."
+                            action={(
+                                <button type="button" className="btn btn-gold" onClick={() => setCreatingFile(true)}>
+                                    <FolderPlus size={16} /> New Raffle File
+                                </button>
+                            )}
+                        />
+                    )}
+
+                    {unfiled.length > 0 && (
+                        <section className="mt-10">
+                            <button
+                                type="button"
+                                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted transition hover:text-white"
+                                onClick={() => setShowUnfiled((open) => !open)}
+                                aria-expanded={showUnfiled}
+                            >
+                                Raffles not in a file ({unfiled.length})
+                                <ChevronDown size={14} className={`transition ${showUnfiled ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {showUnfiled && (
+                                <>
+                                    <p className="mb-4 mt-1.5 text-xs text-muted-dim">
+                                        Made before raffle files. Open one from its menu, or move it into a file — it keeps its own participants and winners.
+                                    </p>
+                                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                        {unfiled.map((raffle, index) => (
+                                            <RaffleCard
+                                                key={raffle.id}
+                                                raffle={raffle}
+                                                delay={index * 0.04}
+                                                files={files}
+                                                onMoveToFile={moveToFile}
+                                                onRedraw={setRedrawing}
+                                                onArchive={(target) => setConfirm({
+                                                    title: 'Archive this raffle?',
+                                                    description: `"${target.name}" will be hidden from the active list. Its winners and audit trail are kept.`,
+                                                    confirmLabel: 'Archive',
+                                                    successMessage: 'Raffle archived.',
+                                                    run: () => api.post(`/raffles/${target.id}/archive`),
+                                                })}
+                                                onDelete={(target) => setConfirm({
+                                                    ...deleteRaffleConfirmation(target),
+                                                    successMessage: 'Raffle deleted.',
+                                                    run: () => api.delete(`/raffles/${target.id}`),
+                                                })}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </section>
+                    )}
                 </>
             )}
+
+            <RedrawDialog raffle={redrawing} onClose={() => setRedrawing(null)} onDone={load} />
 
             <ConfirmDialog
                 open={Boolean(confirm)}

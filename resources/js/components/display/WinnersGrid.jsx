@@ -11,6 +11,27 @@ const GAP_SHARE = 0.012;
 const LINE_HEIGHT = 1.12;
 // The name's letter-spacing, in em (matches tracking-[0.04em]).
 const TRACKING = 0.04;
+// The prize line under each name: its share of the card's height, and its
+// letter-spacing in em (matches tracking-[0.12em]).
+const PRIZE_SHARE = 0.26;
+// The winner's number, left of the name: its circle's size, from the card,
+// and the space between it and the name (share of the card's width).
+const NUMBER_GAP = 0.03;
+const numberBoxFor = (grid) => Math.min(grid.cardHeight * 0.6, grid.cardWidth * 0.18);
+
+/** The winner's number in a gold ring, beside their name. */
+function WinnerNumber({ number, size, gap }) {
+    return (
+        <span
+            className="grid shrink-0 place-items-center rounded-full border-2 border-gold/60 bg-gold/[0.08] font-lux font-bold text-gold-bright"
+            style={{ width: size, height: size, marginRight: gap, fontSize: Math.floor(size * (number >= 100 ? 0.36 : 0.46)) }}
+            aria-label={`Winner ${number}`}
+        >
+            {number}
+        </span>
+    );
+}
+const PRIZE_TRACKING = 0.12;
 
 /**
  * Picks the columns and rows that give the biggest cards for `count` winners
@@ -38,12 +59,12 @@ export function bestGrid(count, width, height) {
 }
 
 let canvas;
-/** Width of `text` at 100px in the given CSS font, with the name's tracking. */
-function textWidth(text, font) {
+/** Width of `text` at 100px in the given CSS font, with the given tracking (the name's by default). */
+function textWidth(text, font, tracking = TRACKING) {
     canvas ??= document.createElement('canvas');
     const context = canvas.getContext('2d');
     context.font = `700 100px ${font}`;
-    return context.measureText(text).width + text.length * TRACKING * 100;
+    return context.measureText(text).width + text.length * tracking * 100;
 }
 
 /**
@@ -77,7 +98,7 @@ export function fitName(name, width, height, font) {
  */
 export default memo(WinnersGrid);
 
-function WinnersGrid({ winners, transition = 'flip', leaving = false }) {
+function WinnersGrid({ winners, transition = 'flip', leaving = false, showPrize = true }) {
     const boxRef = useRef(null);
     const probeRef = useRef(null);
     const [box, setBox] = useState(null);
@@ -108,11 +129,23 @@ function WinnersGrid({ winners, transition = 'flip', leaving = false }) {
         if (!grid || !font) return [];
         const padX = grid.cardWidth * 0.06;
         const padY = grid.cardHeight * 0.08;
-        const nameWidth = grid.cardWidth - padX * 2;
-        const nameHeight = grid.cardHeight - padY * 2;
-        return winners.map((winner) => ({ winner, name: winnerName(winner), ...fitName(winnerName(winner), nameWidth, nameHeight, font) }));
+        // The winner's number sits to the left of the name, in its own circle.
+        const numberBox = numberBoxFor(grid);
+        const nameWidth = grid.cardWidth - padX * 2 - numberBox - grid.cardWidth * NUMBER_GAP;
+        // With prizes, the bottom of each card is kept for the prize line.
+        const withPrizes = showPrize && winners.some((winner) => winner.prize);
+        const innerHeight = grid.cardHeight - padY * 2;
+        const nameHeight = withPrizes ? innerHeight * (1 - PRIZE_SHARE) : innerHeight;
+        const prizeHeight = innerHeight * PRIZE_SHARE;
+        return winners.map((winner) => {
+            const name = winnerName(winner);
+            const prizeSize = withPrizes && winner.prize
+                ? Math.min((nameWidth * 100) / textWidth(winner.prize.toUpperCase(), font, PRIZE_TRACKING), prizeHeight / LINE_HEIGHT)
+                : 0;
+            return { winner, name, prizeSize, ...fitName(name, nameWidth, nameHeight, font) };
+        });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [winners, grid?.cardWidth, grid?.cardHeight, font, fontsReady]);
+    }, [winners, showPrize, grid?.cardWidth, grid?.cardHeight, font, fontsReady]);
 
     return (
         <div ref={boxRef} className="relative h-full w-full">
@@ -129,7 +162,7 @@ function WinnersGrid({ winners, transition = 'flip', leaving = false }) {
                         gap: `${grid.gap}px`,
                     }}
                 >
-                    {cards.map(({ winner, name, lines, size }, index) => {
+                    {cards.map(({ winner, name, lines, size, prizeSize }, index) => {
                         // A short last row sits centred under the full ones.
                         const lastRowStart = (grid.rows - 1) * grid.columns;
                         const inLastRow = index >= lastRowStart;
@@ -145,7 +178,7 @@ function WinnersGrid({ winners, transition = 'flip', leaving = false }) {
                                 animate={leaving ? 'leave' : 'show'}
                                 // Solid rather than blurred glass: a backdrop blur behind every
                                 // moving card makes the turnover stutter on the wall.
-                                className="flex min-w-0 flex-col items-center justify-center overflow-hidden rounded-2xl border border-gold/35 bg-black/65 text-center shadow-gold-sm"
+                                className="flex min-w-0 flex-row items-center justify-center overflow-hidden rounded-2xl border border-gold/35 bg-black/65 text-center shadow-gold-sm"
                                 style={{
                                     padding: `${grid.cardHeight * 0.08}px ${grid.cardWidth * 0.06}px`,
                                     position: 'relative',
@@ -156,13 +189,25 @@ function WinnersGrid({ winners, transition = 'flip', leaving = false }) {
                                 }}
                                 title={name}
                             >
+                                <WinnerNumber number={winner.number ?? winner.position} size={numberBoxFor(grid)} gap={grid.cardWidth * NUMBER_GAP} />
+                                <span className="flex min-w-0 flex-1 flex-col items-center justify-center">
                                 <span
-                                    className="lux-foil block font-lux font-bold uppercase tracking-[0.04em]"
+                                    className="lux-foil lux-foil-card block font-lux font-bold uppercase tracking-[0.04em]"
                                     style={{ fontSize: `${Math.floor(size * 0.97)}px`, lineHeight: LINE_HEIGHT }}
                                 >
                                     {lines.map((line, part) => (
                                         <span key={part} className="block whitespace-nowrap">{line}</span>
                                     ))}
+                                </span>
+                                {showPrize && winner.prize && (
+                                    <span
+                                        className="mt-[0.3em] block max-w-full whitespace-nowrap font-lux font-bold uppercase tracking-[0.12em] text-gold/80"
+                                        style={{ fontSize: `${Math.floor(prizeSize * 0.9)}px`, lineHeight: LINE_HEIGHT }}
+                                        title={winner.prize}
+                                    >
+                                        {winner.prize}
+                                    </span>
+                                )}
                                 </span>
                             </motion.li>
                         );

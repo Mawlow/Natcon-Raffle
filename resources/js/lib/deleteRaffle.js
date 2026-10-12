@@ -8,11 +8,13 @@ import { formatNumber } from './format';
 export function deleteRaffleConfirmation(raffle) {
     const participants = raffle.participants_count ?? 0;
     const winners = raffle.winners_drawn ?? 0;
-    const hasData = participants > 0 || winners > 0;
+    const predraws = raffle.predraws_count ?? 0;
+    const hasData = participants > 0 || winners > 0 || predraws > 0;
 
     const lost = [
         participants > 0 && `${formatNumber(participants)} participant${participants === 1 ? '' : 's'}`,
         winners > 0 && `${formatNumber(winners)} drawn winner${winners === 1 ? '' : 's'}`,
+        predraws > 0 && `the ${formatNumber(predraws)} pre-draw${predraws === 1 ? '' : 's'} made from it, with their winners`,
         'its draw history and settings',
     ].filter(Boolean);
 

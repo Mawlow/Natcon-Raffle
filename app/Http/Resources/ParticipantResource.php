@@ -18,6 +18,7 @@ class ParticipantResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'category' => $this->category,
+            'developers' => $this->developers ?? [],
             'status' => $this->status->value,
             'metadata' => $this->metadata,
             'created_at' => $this->created_at?->toIso8601String(),

@@ -41,17 +41,23 @@ class ParticipantImportService
      * even when it mentions a ticket: "Ticket ID", "Ticket Image File",
      * "Ticket Type" or "Ticket Count" are not what gets drawn.
      */
-    protected const NOT_A_TICKET = ['id', 'file', 'image', 'img', 'qr', 'url', 'link', 'type', 'status', 'count', 'total', 'price', 'amount', 'qty', 'quantity', 'date', 'time'];
+    protected const NOT_A_TICKET = ['id', 'name', 'file', 'image', 'img', 'qr', 'url', 'link', 'type', 'status', 'count', 'total', 'price', 'amount', 'qty', 'quantity', 'date', 'time'];
+
+    /** What a developers cell says when the participant qualified under none. */
+    protected const NO_DEVELOPER = '/^(without|no) developers?$|^(none|n\/?a|-+)$/i';
 
     /** How far down the file to look for the heading row. */
     protected const HEADER_SEARCH_ROWS = 50;
 
     protected const COLUMN_ALIASES = [
-        'ticket_number' => ['ticket_number', 'ticket', 'ticket no', 'ticket number', 'ticketno', 'ticket_no', 'ticket nos', 'ticket num', 'ticket code', 'ticket #', 'raffle ticket', 'raffle number', 'raffle no', 'entry number', 'entry no', 'stub number', 'stub no', 'number'],
-        'name' => ['name', 'full_name', 'full name', 'participant', 'participant_name', 'attendee', 'attendee name', 'guest', 'guest name', 'customer', 'customer name', 'client', 'client name', 'registrant', 'winner name'],
+        'ticket_number' => ['ticket_number', 'ticket', 'ticket no', 'ticket number', 'ticketno', 'ticket_no', 'ticket nos', 'ticket num', 'ticket code', 'ticket #', 'raffle ticket', 'raffle number', 'raffle no', 'entry number', 'entry no', 'stub number', 'stub no', 'control no', 'control number', 'control #', 'number'],
+        // "Ticket Name" is the name printed on the ticket, so it is what the
+        // screens show — ahead of an "Agent Name" or other name column.
+        'name' => ['ticket name', 'name', 'full_name', 'full name', 'participant', 'participant_name', 'attendee', 'attendee name', 'guest', 'guest name', 'customer', 'customer name', 'client', 'client name', 'registrant', 'winner name'],
         'email' => ['email', 'email_address', 'e-mail', 'email address', 'e-mail address'],
         'phone' => ['phone', 'mobile', 'contact', 'phone_number', 'contact_number', 'mobile number', 'mobile no', 'cellphone', 'cell', 'tel', 'telephone'],
-        'category' => ['category', 'type', 'segment', 'group'],
+        'category' => ['tag', 'tags', 'category', 'type', 'segment', 'group'],
+        'developers' => ['qualified developers (tags)', 'qualified developers', 'developers', 'developer', 'developer tags', 'qualified developer'],
         'status' => ['status'],
     ];
 
@@ -160,6 +166,7 @@ class ParticipantImportService
                 'email' => $email,
                 'phone' => $this->cell($row, $map['phone'] ?? null),
                 'category' => $this->cell($row, $map['category'] ?? null),
+                'developers' => $this->developers($this->cell($row, $map['developers'] ?? null)),
                 'status' => $status,
                 'metadata' => $metadata === [] ? null : $metadata,
             ];
@@ -201,8 +208,9 @@ class ParticipantImportService
      * Commit a previously previewed file.
      *
      * @param  'skip'|'update'  $onDuplicate  What to do with ticket numbers that already exist.
+     * @param  bool  $keepStatus  On update, leave an existing ticket's status (winner, absent…) as it is.
      */
-    public function import(Raffle $raffle, UploadedFile $file, ?User $user, string $onDuplicate = 'skip'): ParticipantImport
+    public function import(Raffle $raffle, UploadedFile $file, ?User $user, string $onDuplicate = 'skip', bool $keepStatus = false): ParticipantImport
     {
         $preview = $this->preview($raffle, $file);
         $rows = $preview['rows'];
@@ -219,7 +227,7 @@ class ParticipantImportService
         $updated = 0;
         $skipped = $preview['invalid_count'] + $preview['duplicate_in_file_count'];
 
-        DB::transaction(function () use ($raffle, $rows, $onDuplicate, &$imported, &$updated, &$skipped) {
+        DB::transaction(function () use ($raffle, $rows, $onDuplicate, $keepStatus, &$imported, &$updated, &$skipped) {
             foreach (array_chunk($rows, 500) as $chunk) {
                 $tickets = array_column($chunk, 'ticket_number');
                 $existing = Participant::query()
@@ -238,6 +246,7 @@ class ParticipantImportService
                         'email' => $row['email'],
                         'phone' => $row['phone'],
                         'category' => $row['category'],
+                        'developers' => $row['developers'] === null ? null : json_encode($row['developers']),
                         'status' => $row['status'],
                         'metadata' => $row['metadata'] === null ? null : json_encode($row['metadata']),
                     ];
@@ -246,7 +255,7 @@ class ParticipantImportService
                         if ($onDuplicate === 'update') {
                             Participant::query()
                                 ->whereKey($existing[$row['ticket_number']])
-                                ->update($payload + ['updated_at' => $now]);
+                                ->update(($keepStatus ? array_diff_key($payload, ['status' => true]) : $payload) + ['updated_at' => $now]);
                             $updated++;
                         } else {
                             $skipped++;
@@ -503,6 +512,31 @@ class ParticipantImportService
 
         // A lone middle name is not a name.
         return count($parts) >= 2 || (count($parts) === 1 && ! in_array($keys[$parts[0]], ['middle_name', 'middlename', 'middle_initial', 'mi'], true)) ? $parts : [];
+    }
+
+    /**
+     * "Cebu Landmasters | Filinvest" into ['Cebu Landmasters', 'Filinvest'].
+     * Commas are left alone because company names carry them ("Ayala Land, Inc.").
+     *
+     * @return array<int, string>|null
+     */
+    protected function developers(?string $cell): ?array
+    {
+        if ($cell === null) {
+            return null;
+        }
+
+        $names = [];
+
+        foreach (preg_split('/\s*[|;\r\n]+\s*/', $cell) ?: [] as $name) {
+            $name = preg_replace('/\s+/', ' ', trim($name));
+
+            if ($name !== '' && ! preg_match(self::NO_DEVELOPER, $name) && ! in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names === [] ? null : $names;
     }
 
     /** Say which characters were the problem, rather than just that there was one. */

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\RaffleStatus;
+use App\Http\Controllers\Api\RafflePrizeController;
 use App\Support\RaffleLogos;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -18,8 +19,15 @@ class StoreRaffleRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:160'],
+            // Made inside a raffle file: it starts with the file's participants.
+            'raffle_file_id' => ['nullable', 'integer', 'exists:raffle_files,id'],
+            // Set up in full when it is made: its prize list, and saved ready to draw.
+            ...RafflePrizeController::rules(),
+            'prizes' => ['nullable', 'array', 'max:50'],
+            'ready' => ['nullable', 'boolean'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'prize_name' => ['required', 'string', 'max:160'],
+            // The prize and the number of winners are set later, in the Control Center.
+            'prize_name' => ['nullable', 'string', 'max:160'],
             // cash: the amount is the headline. item: the prize itself (a
             // brand new car, say) is the headline and its value is optional.
             'prize_type' => ['nullable', Rule::in(['cash', 'item'])],
@@ -32,8 +40,18 @@ class StoreRaffleRequest extends FormRequest
             // either side of NATCON; null leaves the corner empty.
             'logo_left' => ['nullable', 'string', Rule::in(RaffleLogos::ids())],
             'logo_right' => ['nullable', 'string', Rule::in(RaffleLogos::ids())],
-            'winners_count' => ['required', 'integer', 'min:1', 'max:500'],
+            'winners_count' => ['nullable', 'integer', 'min:1', 'max:500'],
             'participant_pool' => ['nullable', 'string', 'max:160'],
+            // Who can win: null (everyone), or only the participants carrying
+            // one of the chosen tags, or qualified under one of the chosen developers.
+            'draw_filter' => ['nullable', 'array'],
+            'draw_filter.type' => ['required_with:draw_filter', Rule::in(['all', 'tag', 'developer', 'both'])],
+            'draw_filter.tags' => ['nullable', 'array', 'max:100'],
+            'draw_filter.tags.*' => ['string', 'max:160', 'distinct'],
+            'draw_filter.developers' => ['nullable', 'array', 'max:100'],
+            'draw_filter.developers.*' => ['string', 'max:160', 'distinct'],
+            'draw_filter.values' => ['nullable', 'array', 'max:100'],
+            'draw_filter.values.*' => ['string', 'max:160', 'distinct'],
             'status' => ['nullable', Rule::in([RaffleStatus::Draft->value, RaffleStatus::Ready->value])],
             'allow_repeat_winners' => ['boolean'],
             'starts_at' => ['nullable', 'date'],
@@ -57,5 +75,10 @@ class StoreRaffleRequest extends FormRequest
         $this->merge([
             'allow_repeat_winners' => $this->boolean('allow_repeat_winners'),
         ]);
+    }
+
+    public function messages(): array
+    {
+        return RafflePrizeController::messages();
     }
 }

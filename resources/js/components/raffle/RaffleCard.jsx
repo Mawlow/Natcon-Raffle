@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Archive, Copy, ExternalLink, MoreVertical, Pencil, Trash2, Users } from 'lucide-react';
+import { Archive, Copy, Folder, RotateCcw, Wand2, ExternalLink, FolderInput, MoreVertical, Pencil, Trash2, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import StatusChip from '../ui/StatusChip';
 import { formatNumber, formatPrizeValue } from '../../lib/format';
+import { setLabel } from '../../lib/sets';
 
-export default function RaffleCard({ raffle, onDuplicate, onArchive, onRestore, onDelete, delay = 0 }) {
+export default function RaffleCard({ raffle, files = null, selectable = false, selected = false, onToggleSelect = null, onDuplicate, onRedraw, onConvert = null, onMoveToFile, onArchive, onRestore, onDelete, delay = 0 }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -21,6 +22,14 @@ export default function RaffleCard({ raffle, onDuplicate, onArchive, onRestore, 
     }, [menuOpen]);
 
     const prize = formatPrizeValue(raffle.prize_value, raffle.prize_currency);
+    // A raffle with a prize list shows its first prize and how many more follow.
+    const firstPrize = raffle.prizes?.[0];
+    const firstValue = firstPrize && formatPrizeValue(firstPrize.prize_value, firstPrize.prize_currency);
+    const prizeText = raffle.prize_name
+        ? `${prize ? `${prize} · ` : ''}${raffle.prize_name}`
+        : firstPrize
+            ? `${firstValue ? `${firstValue} · ` : ''}${firstPrize.prize_name}${raffle.prizes.length > 1 ? ` + ${raffle.prizes.length - 1} more` : ''}`
+            : 'Prize not set yet';
     const progress = raffle.winners_count > 0 ? (raffle.winners_drawn / raffle.winners_count) * 100 : 0;
     const isLive = raffle.status === 'LIVE';
 
@@ -31,7 +40,7 @@ export default function RaffleCard({ raffle, onDuplicate, onArchive, onRestore, 
             transition={{ duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] }}
             className={`panel group relative flex flex-col p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-gold/35 ${
                 isLive ? 'panel-gold' : ''
-            } ${raffle.is_archived ? 'opacity-60' : ''}`}
+            } ${raffle.is_archived ? 'opacity-60' : ''} ${selected ? 'ring-2 ring-gold/70' : ''}`}
         >
             {isLive && (
                 <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-gold/25 animate-pulse-gold" aria-hidden="true" />
@@ -40,7 +49,20 @@ export default function RaffleCard({ raffle, onDuplicate, onArchive, onRestore, 
             <header className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
+                        {selectable && (
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4 cursor-pointer rounded border-line bg-black/50 accent-[#d4af37]"
+                                checked={selected}
+                                onChange={() => onToggleSelect?.(raffle)}
+                                aria-label={`Select ${raffle.name}`}
+                            />
+                        )}
                         <StatusChip status={raffle.status} />
+                        {raffle.draw_set && (
+                            <span className="chip border-gold/25 bg-gold/10 text-gold-bright"><Folder size={11} /> {setLabel(raffle.draw_set)}</span>
+                        )}
+                        {raffle.is_predraw && <span className="chip border-gold/25 bg-gold/10 text-gold-bright">Pre-draw</span>}
                         {raffle.is_archived && <span className="chip border-white/10 bg-white/5 text-muted-dim">Archived</span>}
                         {raffle.allow_repeat_winners && (
                             <span className="chip border-amber-400/25 bg-amber-400/10 text-amber-300">Repeats allowed</span>
@@ -66,7 +88,7 @@ export default function RaffleCard({ raffle, onDuplicate, onArchive, onRestore, 
                     </button>
 
                     {menuOpen && (
-                        <div className="panel absolute right-0 top-9 z-20 w-48 overflow-hidden p-1.5 text-sm">
+                        <div className="panel absolute right-0 top-9 z-20 w-56 overflow-hidden p-1.5 text-sm">
                             {!raffle.is_archived && (
                                 <Link
                                     to={`/raffles/${raffle.id}/edit`}
@@ -75,13 +97,15 @@ export default function RaffleCard({ raffle, onDuplicate, onArchive, onRestore, 
                                     <Pencil size={14} /> Edit
                                 </Link>
                             )}
-                            <button
-                                type="button"
-                                onClick={() => { setMenuOpen(false); onDuplicate?.(raffle); }}
-                                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
-                            >
-                                <Copy size={14} /> Duplicate
-                            </button>
+                            {onDuplicate && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onDuplicate(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                >
+                                    <Copy size={14} /> Duplicate
+                                </button>
+                            )}
                             <a
                                 href={`/raffle/${raffle.id}/display`}
                                 target="_blank"
@@ -90,6 +114,45 @@ export default function RaffleCard({ raffle, onDuplicate, onArchive, onRestore, 
                             >
                                 <ExternalLink size={14} /> Open display
                             </a>
+
+                            {onConvert && !raffle.is_archived && !raffle.is_predraw && raffle.winners_drawn === 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onConvert(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                >
+                                    <Wand2 size={14} /> Change to pre-draw
+                                </button>
+                            )}
+
+                            {onRedraw && !raffle.is_archived && raffle.winners_drawn > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onRedraw(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                >
+                                    <RotateCcw size={14} /> Clear winners &amp; redraw
+                                </button>
+                            )}
+
+                            {onMoveToFile && files?.length > 0 && (
+                                <>
+                                    <div className="my-1.5 h-px bg-line" />
+                                    <p className="px-3 pb-1 pt-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-muted-dim">
+                                        Move to raffle file
+                                    </p>
+                                    {files.map((file) => (
+                                        <button
+                                            key={file.id}
+                                            type="button"
+                                            onClick={() => { setMenuOpen(false); onMoveToFile(raffle, file); }}
+                                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                        >
+                                            <FolderInput size={14} /> <span className="truncate">{file.name}</span>
+                                        </button>
+                                    ))}
+                                </>
+                            )}
 
                             <div className="my-1.5 h-px bg-line" />
 
@@ -130,7 +193,7 @@ export default function RaffleCard({ raffle, onDuplicate, onArchive, onRestore, 
             <div className="mt-4 rounded-xl border border-gold/15 bg-gold/[0.04] px-4 py-3">
                 <p className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-gold/70">Prize</p>
                 <p className="mt-1 truncate font-display text-base font-bold text-white">
-                    {prize ? `${prize} · ` : ''}{raffle.prize_name}
+                    {prizeText}
                 </p>
             </div>
 

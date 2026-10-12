@@ -1,10 +1,11 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { Minus, Plus, RotateCcw } from 'lucide-react';
-import { DEFAULT_LOGO_SIZES, LOGO_SIZE_MAX, LOGO_SIZE_MIN, loadLogoSizes, saveLogoSizes, toScale } from '../../lib/logoSizes';
+import { CHANGED_EVENT, DEFAULT_LOGO_SIZES, LOGO_SIZE_MAX, LOGO_SIZE_MIN, loadLogoSizes, saveLogoSizes, toScale } from '../../lib/logoSizes';
 import { LedBackdrop } from '../display/LedPanel';
 import LogoRow from '../display/LogoRow';
 import MainScreenHeader from '../display/MainScreenHeader';
 import SingleScreenHeader from '../display/SingleScreenHeader';
+import ShowcaseHeader from '../display/ShowcaseHeader';
 import { PrizeBody } from '../../pages/PrizeScreen';
 import { WinnerHeader } from '../../pages/WinnerScreen';
 
@@ -23,14 +24,26 @@ export default memo(LogoSizePanel);
 function LogoSizePanel({ raffle, raffleId, screens }) {
     const [sizes, setSizes] = useState(() => loadLogoSizes(raffleId));
     const [previewKey, setPreviewKey] = useState(screens[0].key);
+    // The Congratulations display after the draw, as well as each screen.
+    const hasCorners = Boolean(raffle.logo_left || raffle.logo_right);
+    const previews = [...screens, { key: 'congrats', label: 'Congratulations', path: 'congrats' }];
+
+    // Sizes set elsewhere — a setup section or the edit form — show here too.
+    useEffect(() => {
+        const onChanged = (event) => {
+            if (event.detail?.raffleId === String(raffleId)) setSizes(loadLogoSizes(raffleId));
+        };
+        window.addEventListener(CHANGED_EVENT, onChanged);
+        return () => window.removeEventListener(CHANGED_EVENT, onChanged);
+    }, [raffleId]);
     const scale = toScale(sizes);
     const hasCompanies = (raffle.logos ?? []).length > 0;
 
     // Switching setup swaps the screens; fall back to the first one.
-    const preview = screens.find((screen) => screen.key === previewKey) ?? screens[0];
+    const preview = previews.find((screen) => screen.key === previewKey) ?? screens[0];
     useEffect(() => {
-        if (!screens.some((screen) => screen.key === previewKey)) setPreviewKey(screens[0].key);
-    }, [screens, previewKey]);
+        if (!previews.some((screen) => screen.key === previewKey)) setPreviewKey(screens[0].key);
+    }, [screens, previewKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const change = (key, value) => {
         const next = { ...sizes, [key]: Math.min(LOGO_SIZE_MAX, Math.max(LOGO_SIZE_MIN, value)) };
@@ -38,9 +51,11 @@ function LogoSizePanel({ raffle, raffleId, screens }) {
         saveLogoSizes(raffleId, next);
     };
 
+    // Only this panel's sizes; the Congratulations screen keeps its own.
     const reset = () => {
-        setSizes({ ...DEFAULT_LOGO_SIZES });
-        saveLogoSizes(raffleId, DEFAULT_LOGO_SIZES);
+        const next = { ...loadLogoSizes(raffleId), event: DEFAULT_LOGO_SIZES.event, company: DEFAULT_LOGO_SIZES.company };
+        setSizes(next);
+        saveLogoSizes(raffleId, next);
     };
 
     const isDefault = sizes.event === DEFAULT_LOGO_SIZES.event && sizes.company === DEFAULT_LOGO_SIZES.company;
@@ -50,7 +65,7 @@ function LogoSizePanel({ raffle, raffleId, screens }) {
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h2 className="font-display text-base font-bold text-white">Logo size</h2>
-                    <p className="mt-0.5 text-xs text-muted">Changes show on the open screens straight away.</p>
+                    <p className="mt-0.5 text-xs text-muted">For the main, winner and prize screens. Changes show on the open screens straight away.</p>
                 </div>
                 <button type="button" className="btn btn-ghost px-3 py-1.5 text-xs" onClick={reset} disabled={isDefault}>
                     <RotateCcw size={13} />
@@ -71,9 +86,9 @@ function LogoSizePanel({ raffle, raffleId, screens }) {
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-dim">Live preview</p>
-                {screens.length > 1 && (
-                    <div className="flex gap-1 rounded-lg border border-line bg-black/40 p-1" role="tablist" aria-label="Preview screen">
-                        {screens.map((screen) => (
+                {previews.length > 1 && (
+                    <div className="flex flex-wrap gap-1 rounded-lg border border-line bg-black/40 p-1" role="tablist" aria-label="Preview screen">
+                        {previews.map((screen) => (
                             <button
                                 key={screen.key}
                                 type="button"
@@ -92,7 +107,14 @@ function LogoSizePanel({ raffle, raffleId, screens }) {
             </div>
 
             <div className="pointer-events-none mt-3 select-none overflow-hidden rounded-xl border border-line" aria-hidden="true">
-                {preview.key === 'winner' ? (
+                {preview.key === 'congrats' ? (
+                    <MainScreenPreview>
+                        <ShowcaseHeader logos={raffle.logos ?? []} left={raffle.logo_left} right={raffle.logo_right} sizes={scale} />
+                        <div className="relative z-10 flex w-full flex-1 px-16 pb-10 pt-8">
+                            <Placeholder>Winners</Placeholder>
+                        </div>
+                    </MainScreenPreview>
+                ) : preview.key === 'winner' ? (
                     <SubScreenPreview>
                         <LogoRow logos={raffle.logos ?? []} scale={0.5} sizes={scale} />
                         <div className="mt-[2cqh]">
@@ -118,6 +140,12 @@ function LogoSizePanel({ raffle, raffleId, screens }) {
                     </MainScreenPreview>
                 )}
             </div>
+            {preview.key === 'congrats' && (
+                <p className="mt-2 text-xs text-muted-dim">
+                    The Congratulations screen has its own NATCON and corner logo sizes, set in the Congratulations screen logos panel above.
+                    {!hasCorners && ' This raffle has no corner logos, so NATCON and the company logos run across the top.'}
+                </p>
+            )}
             {/* The three-screen main screen shows only the NATCON logo. */}
             {preview.path === 'display' && hasCompanies && (
                 <p className="mt-2 text-xs text-muted-dim">The main screen shows only the NATCON logo; company logos are on the sub screens.</p>
@@ -127,7 +155,7 @@ function LogoSizePanel({ raffle, raffleId, screens }) {
 }
 
 /** One size, set like a volume: − and + buttons either side of a slider, and the percentage. */
-export function SizeSlider({ label, value, onChange, disabled = false, hint = null }) {
+export function SizeSlider({ label, value, onChange, disabled = false, hint = null, min = LOGO_SIZE_MIN, max = LOGO_SIZE_MAX, step = STEP, noun = 'size', less = 'smaller', more = 'bigger' }) {
     return (
         <div className={disabled ? 'opacity-50' : ''}>
             <div className="flex items-baseline justify-between">
@@ -138,29 +166,29 @@ export function SizeSlider({ label, value, onChange, disabled = false, hint = nu
                 <button
                     type="button"
                     className="rounded-md border border-line p-1.5 text-muted transition hover:text-gold disabled:opacity-30"
-                    onClick={() => onChange(value - STEP)}
-                    disabled={disabled || value <= LOGO_SIZE_MIN}
-                    aria-label={`Make the ${label} smaller`}
+                    onClick={() => onChange(Math.max(min, value - step))}
+                    disabled={disabled || value <= min}
+                    aria-label={`Make the ${label} ${less}`}
                 >
                     <Minus size={14} />
                 </button>
                 <input
                     type="range"
-                    min={LOGO_SIZE_MIN}
-                    max={LOGO_SIZE_MAX}
-                    step={STEP}
+                    min={min}
+                    max={max}
+                    step={step}
                     value={value}
                     disabled={disabled}
                     onChange={(event) => onChange(Number(event.target.value))}
                     className="h-1.5 w-full cursor-pointer accent-gold disabled:cursor-not-allowed"
-                    aria-label={`${label} size`}
+                    aria-label={`${label} ${noun}`}
                 />
                 <button
                     type="button"
                     className="rounded-md border border-line p-1.5 text-muted transition hover:text-gold disabled:opacity-30"
-                    onClick={() => onChange(value + STEP)}
-                    disabled={disabled || value >= LOGO_SIZE_MAX}
-                    aria-label={`Make the ${label} bigger`}
+                    onClick={() => onChange(Math.min(max, value + step))}
+                    disabled={disabled || value >= max}
+                    aria-label={`Make the ${label} ${more}`}
                 >
                     <Plus size={14} />
                 </button>
@@ -187,7 +215,7 @@ function SubScreenPreview({ children }) {
 const STAGE_WIDTH = 1920;
 const STAGE_HEIGHT = 1080;
 
-function MainScreenPreview({ children }) {
+export function MainScreenPreview({ children }) {
     const frameRef = useRef(null);
     const [width, setWidth] = useState(0);
 
@@ -223,7 +251,7 @@ function MainScreenPreview({ children }) {
 }
 
 /** Stands in for the part of a screen that is not about the logos. */
-function Placeholder({ children, className = '' }) {
+export function Placeholder({ children, className = '' }) {
     return (
         <div className={`grid min-h-0 w-full flex-1 place-items-center rounded-[1.5cqw] border-2 border-dashed border-white/10 text-white/20 ${className}`}>
             <span className="font-display font-bold uppercase tracking-[0.3em]" style={{ fontSize: 'max(0.7rem, 2cqw)' }}>{children}</span>

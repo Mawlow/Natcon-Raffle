@@ -275,7 +275,7 @@ class ParticipantImportTest extends TestCase
 
     public function test_a_ticket_id_column_is_never_guessed_as_the_ticket_number(): void
     {
-        $file = $this->csv("Control No.,Ticket ID,Attendee Name\n1,T-1,Juan\n");
+        $file = $this->csv("Row,Ticket ID,Attendee Name\n1,T-1,Juan\n");
 
         $this->actingAs($this->admin())
             ->previewImport(['file' => $file])

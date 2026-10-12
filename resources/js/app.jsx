@@ -20,6 +20,7 @@ import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import NotFound from './pages/NotFound';
+import { useRefreshKey } from './lib/refreshScreen';
 
 // The projector display and the landing page are loaded eagerly — they are the
 // two screens people arrive on. The admin pages (and their charting library)
@@ -32,10 +33,13 @@ import PrizeShow from './pages/PrizeShow';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Raffles = lazy(() => import('./pages/Raffles'));
+const RaffleFileDetail = lazy(() => import('./pages/RaffleFileDetail'));
 const RaffleEditor = lazy(() => import('./pages/RaffleEditor'));
 const RaffleDetail = lazy(() => import('./pages/RaffleDetail'));
 const RaffleParticipants = lazy(() => import('./pages/RaffleParticipants'));
 const Winners = lazy(() => import('./pages/Winners'));
+const Reports = lazy(() => import('./pages/Reports'));
+const ReportPrint = lazy(() => import('./pages/ReportPrint'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
 const ControlCenter = lazy(() => import('./pages/ControlCenter'));
 const PrizeShowControl = lazy(() => import('./pages/PrizeShowControl'));
@@ -89,10 +93,13 @@ function App() {
                         <Route path="/dashboard" element={<Page><Dashboard /></Page>} />
                         <Route path="/raffles" element={<Page><Raffles /></Page>} />
                         <Route path="/raffles/new" element={<Page><RaffleEditor /></Page>} />
+                        <Route path="/raffle-files/:file" element={<Page><RaffleFileDetail /></Page>} />
                         <Route path="/raffles/:raffle" element={<Page><RaffleDetail /></Page>} />
                         <Route path="/raffles/:raffle/edit" element={<Page><RaffleEditor /></Page>} />
                         <Route path="/raffles/:raffle/participants" element={<Page><RaffleParticipants /></Page>} />
                         <Route path="/winners" element={<Page><Winners /></Page>} />
+                        <Route path="/reports" element={<Page><Reports /></Page>} />
+                        <Route path="/reports/print" element={<Page><ReportPrint /></Page>} />
                         <Route path="/audit-log" element={<Page><AuditLog /></Page>} />
 
                         <Route path="*" element={<NotFound />} />
@@ -103,8 +110,14 @@ function App() {
     );
 }
 
+// The display screens' refresh button rebuilds the whole app in place, so a
+// fullscreen wall stays fullscreen (see lib/refreshScreen).
+function Root() {
+    return <App key={useRefreshKey()} />;
+}
+
 createRoot(document.getElementById('app')).render(
     <StrictMode>
-        <App />
+        <Root />
     </StrictMode>,
 );

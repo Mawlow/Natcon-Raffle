@@ -223,4 +223,50 @@ class DrawEndpointTest extends TestCase
             ->postJson("/api/raffles/{$raffle->id}/draw", ['request_id' => 'draw-6'])
             ->assertStatus(409);
     }
+
+    public function test_two_screens_sending_the_same_draw_get_one_winner(): void
+    {
+        // Two main screens answer the same DRAW from the Control Center with one id.
+        $raffle = $this->raffleWithPool(10, ['winners_count' => 5]);
+        $admin = $this->admin();
+
+        $first = $this->actingAs($admin)->postJson("/api/raffles/{$raffle->id}/draw", ['request_id' => 'cmd-1'])->assertCreated();
+        $second = $this->actingAs($admin)->postJson("/api/raffles/{$raffle->id}/draw", ['request_id' => 'cmd-1'])->assertOk();
+
+        $this->assertSame($first->json('data.ticket_number'), $second->json('data.ticket_number'));
+        $this->assertTrue($second->json('replayed'));
+        $this->assertSame(1, Winner::where('raffle_id', $raffle->id)->count());
+    }
+
+    public function test_a_draw_sent_while_another_runs_is_told_to_wait_then_gets_the_same_winner(): void
+    {
+        $raffle = $this->raffleWithPool(10, ['winners_count' => 5]);
+        $admin = $this->admin();
+
+        // Another request holds the draw lock: this one is refused, nothing drawn.
+        $lock = \Illuminate\Support\Facades\Cache::lock("raffle-draw:{$raffle->id}", 15);
+        $lock->get();
+        $this->actingAs($admin)->postJson("/api/raffles/{$raffle->id}/draw", ['request_id' => 'cmd-2'])
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'DRAW_IN_PROGRESS');
+        $this->assertSame(0, Winner::where('raffle_id', $raffle->id)->count());
+        $lock->release();
+
+        // The screen retries with the same id and draws exactly once.
+        $this->actingAs($admin)->postJson("/api/raffles/{$raffle->id}/draw", ['request_id' => 'cmd-2'])->assertCreated();
+        $this->actingAs($admin)->postJson("/api/raffles/{$raffle->id}/draw", ['request_id' => 'cmd-2'])->assertOk();
+        $this->assertSame(1, Winner::where('raffle_id', $raffle->id)->count());
+    }
+
+    public function test_a_busy_event_is_not_stopped_by_the_rate_limit(): void
+    {
+        $raffle = $this->raffleWithPool(60, ['winners_count' => 40]);
+        $admin = $this->admin();
+
+        for ($i = 1; $i <= 40; $i++) {
+            $this->actingAs($admin)->postJson("/api/raffles/{$raffle->id}/draw", ['request_id' => "busy-{$i}"])->assertCreated();
+        }
+
+        $this->assertSame(40, Winner::where('raffle_id', $raffle->id)->count());
+    }
 }

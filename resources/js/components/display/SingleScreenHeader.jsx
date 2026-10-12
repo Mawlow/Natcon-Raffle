@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { formatPrizeValue } from '../../lib/format';
+import { DISPLAY_TITLE, cashPrizeText, formatPrizeValue } from '../../lib/format';
 import { Diamond, EVENT, EVENT_LOGO } from '../landing/EventScene';
 import { vh, vw } from './stageUnits';
 import StageLogo from './StageLogo';
+import { CornerLogoRow } from './ShowcaseHeader';
 
 /**
  * The masthead of the one-screen setup, where a single screen carries
@@ -12,14 +13,27 @@ import StageLogo from './StageLogo';
  */
 export default function SingleScreenHeader({ raffle, sizes = { event: 1, company: 1 } }) {
     const companies = raffle.logos ?? [];
+    // With corner logos, the top is laid out as on the winners page — one
+    // logo top left, NATCON in the middle, one top right — from Get Ready on.
+    const corners = Boolean(raffle.logo_left || raffle.logo_right);
     const prizeValue = formatPrizeValue(raffle.prize_value, raffle.prize_currency);
 
     return (
         <div
             className="relative z-10 flex w-full flex-col items-center text-center"
-            style={{ paddingInline: `clamp(1rem,${vw(4)},4rem)`, paddingTop: `clamp(1rem,${vh(3)},2.25rem)` }}
+            style={corners
+                ? { paddingInline: `clamp(1rem,${vw(3)},3.5rem)`, paddingTop: `clamp(0.75rem,${vh(2.5)},2rem)` }
+                : { paddingInline: `clamp(1rem,${vw(4)},4rem)`, paddingTop: `clamp(1rem,${vh(3)},2.25rem)` }}
         >
-            <LogoStrip logos={companies} sizes={sizes} />
+            {corners ? (
+                <>
+                    <CornerLogoRow left={raffle.logo_left} right={raffle.logo_right} sizes={sizes} />
+                    {/* Any other company logos, in a row of their own beneath. */}
+                    {companies.length > 0 && <CompanyRow logos={companies} sizes={sizes} />}
+                </>
+            ) : (
+                <LogoStrip logos={companies} sizes={sizes} />
+            )}
 
             <motion.div
                 initial={{ opacity: 0, scaleX: 0.4 }}
@@ -47,11 +61,11 @@ export default function SingleScreenHeader({ raffle, sizes = { event: 1, company
                     fontSize: `clamp(2rem,min(${vw(5.8)},${vh(9)}),5.5rem)`,
                 }}
             >
-                {raffle.name}
+                {DISPLAY_TITLE}
             </motion.h1>
 
-            {/* The prize in a glowing gold frame that breathes gently. */}
-            <motion.div
+            {/* The prize in a glowing gold frame that breathes gently — once it is set. */}
+            {raffle.prize_name && <motion.div
                 initial={{ opacity: 0, y: 8, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.9, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -80,22 +94,13 @@ export default function SingleScreenHeader({ raffle, sizes = { event: 1, company
                             )}
                         </>
                     ) : (
-                        <>
-                            {prizeValue && (
-                                <>
-                                    <p className="prize-gradient pl-[0.14em] font-lux font-bold uppercase leading-tight tracking-[0.14em]" style={{ fontSize: `clamp(1.7rem,min(${vw(4)},${vh(6.4)}),3.5rem)` }}>
-                                        {prizeValue}
-                                    </p>
-                                    <span className="block size-[8px] rotate-45 bg-gold shadow-[0_0_10px_rgba(212,175,55,0.8)]" aria-hidden="true" />
-                                </>
-                            )}
-                            <p className="font-script font-semibold italic leading-tight tracking-[0.03em] prize-gradient" style={{ fontSize: `clamp(1.9rem,min(${vw(4.3)},${vh(7)}),3.7rem)` }}>
-                                {raffle.prize_name}
-                            </p>
-                        </>
+                        // Cash: the amount and "CASH PRIZE" as one line — "₱1,000 CASH PRIZE".
+                        <p className="prize-gradient pl-[0.14em] font-lux font-bold uppercase leading-tight tracking-[0.14em]" style={{ fontSize: `clamp(1.7rem,min(${vw(4)},${vh(6.4)}),3.5rem)` }}>
+                            {cashPrizeText(raffle.prize_value, raffle.prize_currency) ?? raffle.prize_name}
+                        </p>
                     )}
                 </div>
-            </motion.div>
+            </motion.div>}
         </div>
     );
 }
@@ -124,6 +129,23 @@ export function LogoStrip({ logos: companies = [], sizes = { event: 1, company: 
             )}
             {companies.map((logo) => (
                 <LogoBox key={logo.id} src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} small={companies.length > 4} scale={sizes.company} />
+            ))}
+        </motion.div>
+    );
+}
+
+/** The company logos alone, beneath the corner logos. */
+function CompanyRow({ logos, sizes }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-[clamp(0.25rem,1vh,0.75rem)] flex flex-wrap items-center justify-center gap-y-2"
+            style={{ maxWidth: vw(94), columnGap: `clamp(0.75rem,${vw(2)},2rem)` }}
+        >
+            {logos.map((logo) => (
+                <LogoBox key={logo.id} src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} small scale={sizes.company} />
             ))}
         </motion.div>
     );

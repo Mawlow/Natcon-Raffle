@@ -34,6 +34,9 @@ class StoreParticipantRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:190'],
             'phone' => ['nullable', 'string', 'max:64'],
             'category' => ['nullable', 'string', 'max:64'],
+            // The developers a participant qualified under, for drawing by developer.
+            'developers' => ['nullable', 'array', 'max:50'],
+            'developers.*' => ['string', 'max:160', 'distinct'],
             'status' => ['nullable', Rule::in(ParticipantStatus::values())],
             'metadata' => ['nullable', 'array'],
         ];

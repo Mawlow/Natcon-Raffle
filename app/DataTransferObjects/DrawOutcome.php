@@ -28,6 +28,8 @@ readonly class DrawOutcome
             'ticket_number' => $this->winner->ticket_number,
             'name' => $this->winner->participant?->name,
             'position' => $this->winner->position,
+            'prize_id' => $this->winner->raffle_prize_id,
+            'prize_name' => $this->winner->prize_name,
             'drawn_at' => $this->winner->drawn_at?->toIso8601String(),
             'event_uuid' => $this->drawEvent->event_uuid,
             'eligible_count' => $this->eligibleCountBeforeDraw,

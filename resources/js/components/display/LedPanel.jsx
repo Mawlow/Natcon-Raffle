@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCw } from 'lucide-react';
+import { refreshScreen } from '../../lib/refreshScreen';
 import HashtagMark from './HashtagMark';
 
 /**
@@ -8,7 +9,7 @@ import HashtagMark from './HashtagMark';
  * resolution; a window of another shape gets black bars, never a stretch.
  */
 export default function LedPanel({ children, overlay = null }) {
-    const [fullscreen, setFullscreen] = useState(false);
+    const [fullscreen, setFullscreen] = useState(() => Boolean(document.fullscreenElement));
 
     useEffect(() => {
         const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
@@ -39,16 +40,27 @@ export default function LedPanel({ children, overlay = null }) {
 
                 {overlay}
 
-                {/* Invisible until hovered, so it never shows on the wall. */}
-                <button
-                    type="button"
-                    onClick={toggleFullscreen}
-                    className="absolute right-3 top-3 z-30 rounded-lg border border-line bg-black/50 p-2 text-muted opacity-0 backdrop-blur transition hover:text-gold hover:opacity-100 focus:opacity-100"
-                    aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                    title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                >
-                    {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-                </button>
+                {/* Invisible until hovered, so they never show on the wall. */}
+                <div className="absolute right-3 top-3 z-30 flex items-center gap-2 opacity-0 transition hover:opacity-100 focus-within:opacity-100">
+                    <button
+                        type="button"
+                        onClick={refreshScreen}
+                        className="rounded-lg border border-line bg-black/50 p-2 text-muted backdrop-blur transition hover:text-gold"
+                        aria-label="Refresh"
+                        title="Refresh"
+                    >
+                        <RotateCw size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        className="rounded-lg border border-line bg-black/50 p-2 text-muted backdrop-blur transition hover:text-gold"
+                        aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                        title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                    >
+                        {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                    </button>
+                </div>
 
                 <div className="relative z-10 flex h-full w-full flex-col items-center px-[5cqw] py-[5cqh] text-center">
                     {children}

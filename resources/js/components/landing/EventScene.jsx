@@ -10,10 +10,15 @@ import Fireworks from './Fireworks';
 export const EVENT = {
     name: 'National Real Estate Convention 2026',
     dates: 'October 18–19, 2026',
+    // One day of the convention, for the welcome screen on that day.
+    days: {
+        18: 'October 18, 2026',
+        19: 'October 19, 2026',
+    },
     venue: 'JPark Island Resort & Waterpark · Mactan, Cebu',
 };
 
-export const EVENT_LOGO = '/images/natcon-logos.png';
+export const EVENT_LOGO = '/images/natcon-logo-2026.png';
 
 const EVENT_BANNER = '/images/natcon-2026.webp';
 const TROPHY = '/images/trophy.png';
@@ -37,9 +42,11 @@ export function EventBackdrop({ fireworks = { mode: 'ambient' }, palms = true })
             <motion.img
                 src={EVENT_BANNER}
                 alt=""
-                initial={{ scale: 1.18, opacity: 0 }}
-                animate={{ scale: 1.06, opacity: 0.85 }}
-                transition={{ duration: 2.6, ease: [0.22, 1, 0.36, 1] }}
+                // A fade only: zooming a full-screen picture in made weaker
+                // screens (smart TVs) stutter as every screen opened.
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.85 }}
+                transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1] }}
                 className="h-full w-full scale-[1.06] object-cover blur-[2px] sm:blur-0"
             />
             {/* Darkest through the middle band, where the headline sits. */}

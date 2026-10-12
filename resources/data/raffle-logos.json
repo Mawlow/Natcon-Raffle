@@ -4,28 +4,32 @@
     "group": "Developers",
     "label": "77LIVING SPACES",
     "path": "/images/logos/developers/77living-spaces.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/77living-spaces.png"
   },
   {
     "id": "developers/8990",
     "group": "Developers",
     "label": "8990",
     "path": "/images/logos/developers/8990.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/8990.png"
   },
   {
     "id": "developers/argus",
     "group": "Developers",
     "label": "ARGUS",
     "path": "/images/logos/developers/argus.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/argus.png"
   },
   {
     "id": "developers/be-residences",
     "group": "Developers",
     "label": "BE RESIDENCES",
     "path": "/images/logos/developers/be-residences.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/be-residences-on-dark.png"
   },
   {
     "id": "developers/cebu-landdmasters",
@@ -40,126 +44,144 @@
     "group": "Developers",
     "label": "FILINVEST B",
     "path": "/images/logos/developers/filinvest-b.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/filinvest-b.png"
   },
   {
     "id": "developers/filinvest",
     "group": "Developers",
     "label": "FILINVEST",
     "path": "/images/logos/developers/filinvest.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/filinvest.png"
   },
   {
     "id": "developers/golden-topper-b",
     "group": "Developers",
     "label": "GOLDEN TOPPER B",
     "path": "/images/logos/developers/golden-topper-b.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/golden-topper-b.png"
   },
   {
     "id": "developers/golden-topper",
     "group": "Developers",
     "label": "GOLDEN TOPPER",
     "path": "/images/logos/developers/golden-topper.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/golden-topper.png"
   },
   {
     "id": "developers/grandland",
     "group": "Developers",
     "label": "GRANDLAND",
     "path": "/images/logos/developers/grandland.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/grandland.png"
   },
   {
     "id": "developers/italpinas",
     "group": "Developers",
     "label": "ITALPINAS",
     "path": "/images/logos/developers/italpinas.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/italpinas-on-dark.png"
   },
   {
     "id": "developers/johndorf-ventures-corp",
     "group": "Developers",
     "label": "JOHNDORF VENTURES CORP",
     "path": "/images/logos/developers/johndorf-ventures-corp.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/johndorf-ventures-corp.png"
   },
   {
     "id": "developers/king-properties",
     "group": "Developers",
     "label": "KING PROPERTIES",
     "path": "/images/logos/developers/king-properties.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/king-properties.png"
   },
   {
     "id": "developers/kisan-lu-land",
     "group": "Developers",
     "label": "KISAN LU LAND",
     "path": "/images/logos/developers/kisan-lu-land.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/kisan-lu-land-on-dark.png"
   },
   {
     "id": "developers/megaworld-b",
     "group": "Developers",
     "label": "MEGAWORLD B",
     "path": "/images/logos/developers/megaworld-b.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/megaworld-b.png"
   },
   {
     "id": "developers/megaworld",
     "group": "Developers",
     "label": "MEGAWORLD",
     "path": "/images/logos/developers/megaworld.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/megaworld.png"
   },
   {
     "id": "developers/ml-d-development-corp",
     "group": "Developers",
     "label": "ML & D DEVELOPMENT CORP",
     "path": "/images/logos/developers/ml-d-development-corp.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/ml-d-development-corp-on-dark.png"
   },
   {
     "id": "developers/mld-dream-builders-inc",
     "group": "Developers",
     "label": "MLD Dream Builders Inc",
     "path": "/images/logos/developers/mld-dream-builders-inc.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/mld-dream-builders-inc.png"
   },
   {
     "id": "developers/priland",
     "group": "Developers",
     "label": "PRILAND",
     "path": "/images/logos/developers/priland.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/priland.png"
   },
   {
     "id": "developers/primaryhomes-inc",
     "group": "Developers",
     "label": "PrimaryHomes, Inc",
     "path": "/images/logos/developers/primaryhomes-inc.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/developers/primaryhomes-inc-on-dark.png"
   },
   {
     "id": "developers/primeworld-land-holdings-inc",
     "group": "Developers",
     "label": "Primeworld Land Holdings Inc",
     "path": "/images/logos/developers/primeworld-land-holdings-inc.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/primeworld-land-holdings-inc-on-dark.png"
   },
   {
     "id": "developers/rtu-land-development-corp",
     "group": "Developers",
     "label": "RTU Land Development Corp",
     "path": "/images/logos/developers/rtu-land-development-corp.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/rtu-land-development-corp-on-dark.png"
   },
   {
     "id": "developers/sterling-land-residences-and-development-inc",
     "group": "Developers",
     "label": "Sterling Land Residences and Development Inc",
     "path": "/images/logos/developers/sterling-land-residences-and-development-inc.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/sterling-land-residences-and-development-inc.png"
   },
   {
     "id": "developers/vcdu-realty-corporation",
@@ -174,363 +196,847 @@
     "group": "Developers",
     "label": "Wee Community Developers",
     "path": "/images/logos/developers/wee-community-developers.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/developers/wee-community-developers-on-dark.png"
   },
   {
     "id": "fhi-global-property/fhi-branding-set-png-copies-01",
     "group": "FHI Global Property",
     "label": "FHI Branding 01",
     "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-01.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-01.png"
   },
   {
     "id": "fhi-global-property/fhi-branding-set-png-copies-02",
     "group": "FHI Global Property",
     "label": "FHI Branding 02",
     "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-02.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-02.png"
   },
   {
     "id": "fhi-global-property/fhi-branding-set-png-copies-03",
     "group": "FHI Global Property",
     "label": "FHI Branding 03",
     "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-03.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-03.png"
   },
   {
     "id": "fhi-global-property/fhi-branding-set-png-copies-05",
     "group": "FHI Global Property",
     "label": "FHI Branding 05",
     "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-05.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-05.png"
   },
   {
     "id": "fhi-global-property/fhi-branding-set-png-copies-07",
     "group": "FHI Global Property",
     "label": "FHI Branding 07",
     "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-07.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-07.png"
   },
   {
     "id": "fhi-global-property/fhi-branding-set-png-copies-08",
     "group": "FHI Global Property",
     "label": "FHI Branding 08",
     "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-08.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-08.png"
   },
   {
     "id": "fhi-global-property/fhi-branding-set-png-copies-09",
     "group": "FHI Global Property",
     "label": "FHI Branding 09",
     "path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-09.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/fhi-global-property/fhi-branding-set-png-copies-09.png"
   },
   {
     "id": "fire/fire-logo-black",
     "group": "FIRE",
     "label": "FIRE logo black",
     "path": "/images/logos/fire/fire-logo-black.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/fire/fire-logo-black-on-dark.png"
   },
   {
     "id": "fire/fire-logo-white",
     "group": "FIRE",
     "label": "FIRE logo white",
     "path": "/images/logos/fire/fire-logo-white.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/fire/fire-logo-white.png"
   },
   {
     "id": "filipino-homes/fh-accreditation-no-rae-2023-055-black",
     "group": "Filipino Homes",
     "label": "FH Accreditation No. RAE 2023 -055 Black",
     "path": "/images/logos/filipino-homes/fh-accreditation-no-rae-2023-055-black.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/fh-accreditation-no-rae-2023-055-black-on-dark.png"
   },
   {
     "id": "filipino-homes/fh-accreditation-no-rae-2023-055-white",
     "group": "Filipino Homes",
     "label": "FH Accreditation No. RAE 2023 -055 White",
     "path": "/images/logos/filipino-homes/fh-accreditation-no-rae-2023-055-white.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/fh-accreditation-no-rae-2023-055-white.png"
   },
   {
     "id": "filipino-homes/fh-prc-black-logo-1",
     "group": "Filipino Homes",
     "label": "FH PRC black logo 1",
     "path": "/images/logos/filipino-homes/fh-prc-black-logo-1.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/fh-prc-black-logo-1-on-dark.png"
   },
   {
     "id": "filipino-homes/fh-prc-white-logo-1",
     "group": "Filipino Homes",
     "label": "FH PRC white logo 1",
     "path": "/images/logos/filipino-homes/fh-prc-white-logo-1.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/fh-prc-white-logo-1.png"
   },
   {
     "id": "filipino-homes/fh-training-logo-black",
     "group": "Filipino Homes",
     "label": "FH Training logo black",
     "path": "/images/logos/filipino-homes/fh-training-logo-black.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/fh-training-logo-black-on-dark.png"
   },
   {
     "id": "filipino-homes/fh-traning-logo-white",
     "group": "Filipino Homes",
     "label": "FH Traning logo white",
     "path": "/images/logos/filipino-homes/fh-traning-logo-white.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/fh-traning-logo-white.png"
   },
   {
     "id": "filipino-homes/filipinohomes-plus-logo",
     "group": "Filipino Homes",
     "label": "Filipinohomes Plus logo",
     "path": "/images/logos/filipino-homes/filipinohomes-plus-logo.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-plus-logo.png"
   },
   {
     "id": "filipino-homes/filipinohomes-logo-1",
     "group": "Filipino Homes",
     "label": "Filipinohomes logo 1",
     "path": "/images/logos/filipino-homes/filipinohomes-logo-1.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-logo-1-on-dark.png"
   },
   {
     "id": "filipino-homes/filipinohomes-logo-2",
     "group": "Filipino Homes",
     "label": "Filipinohomes logo 2",
     "path": "/images/logos/filipino-homes/filipinohomes-logo-2.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-logo-2.png"
   },
   {
     "id": "filipino-homes/filipinohomes-logo-5",
     "group": "Filipino Homes",
     "label": "Filipinohomes logo 5",
     "path": "/images/logos/filipino-homes/filipinohomes-logo-5.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-logo-5-on-dark.png"
   },
   {
     "id": "filipino-homes/filipinohomes-logo-6",
     "group": "Filipino Homes",
     "label": "Filipinohomes logo 6",
     "path": "/images/logos/filipino-homes/filipinohomes-logo-6.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-logo-6-on-dark.png"
   },
   {
     "id": "filipino-homes/filipinohomes-logo-7",
     "group": "Filipino Homes",
     "label": "Filipinohomes logo 7",
     "path": "/images/logos/filipino-homes/filipinohomes-logo-7.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-logo-7.png"
   },
   {
     "id": "filipino-homes/filipinohomes-magazine-logo",
     "group": "Filipino Homes",
     "label": "Filipinohomes Magazine logo",
     "path": "/images/logos/filipino-homes/filipinohomes-magazine-logo.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-magazine-logo.png"
   },
   {
     "id": "filipino-homes/filipinohomes-logo-3",
     "group": "Filipino Homes",
     "label": "Filipinohomes logo 3",
     "path": "/images/logos/filipino-homes/filipinohomes-logo-3.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-logo-3-on-dark.png"
   },
   {
     "id": "filipino-homes/filipinohomes-logo-4",
     "group": "Filipino Homes",
     "label": "Filipinohomes logo 4",
     "path": "/images/logos/filipino-homes/filipinohomes-logo-4.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-logo-4.png"
   },
   {
     "id": "filipino-homes/filipinohomes-logo-for-fb-posting",
     "group": "Filipino Homes",
     "label": "Filipinohomes logo for FB posting",
     "path": "/images/logos/filipino-homes/filipinohomes-logo-for-fb-posting.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/filipinohomes-logo-for-fb-posting.png"
   },
   {
     "id": "filipino-homes/healthcare-black",
     "group": "Filipino Homes",
     "label": "HealthCare black",
     "path": "/images/logos/filipino-homes/healthcare-black.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes/healthcare-black-on-dark.png"
   },
   {
     "id": "filipino-homes/healthcare-white",
     "group": "Filipino Homes",
     "label": "HealthCare white",
     "path": "/images/logos/filipino-homes/healthcare-white.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes/healthcare-white-on-dark.png"
   },
   {
     "id": "filipino-homes-cares/filipinohomes-care-black-logo-1",
     "group": "Filipino Homes Cares",
     "label": "Filipinohomes Care black logo 1",
     "path": "/images/logos/filipino-homes-cares/filipinohomes-care-black-logo-1.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes-cares/filipinohomes-care-black-logo-1-on-dark.png"
   },
   {
     "id": "filipino-homes-cares/filipinohomes-care-black-logo-2",
     "group": "Filipino Homes Cares",
     "label": "Filipinohomes Care black logo 2",
     "path": "/images/logos/filipino-homes-cares/filipinohomes-care-black-logo-2.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes-cares/filipinohomes-care-black-logo-2-on-dark.png"
   },
   {
     "id": "filipino-homes-cares/filipinohomes-care-logo",
     "group": "Filipino Homes Cares",
     "label": "Filipinohomes Care logo",
     "path": "/images/logos/filipino-homes-cares/filipinohomes-care-logo.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes-cares/filipinohomes-care-logo-on-dark.png"
   },
   {
     "id": "filipino-homes-cares/filipinohomes-care-white-logo-1",
     "group": "Filipino Homes Cares",
     "label": "Filipinohomes Care white logo 1",
     "path": "/images/logos/filipino-homes-cares/filipinohomes-care-white-logo-1.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes-cares/filipinohomes-care-white-logo-1.png"
   },
   {
     "id": "filipino-homes-cares/filipinohomes-care-white-logo-2",
     "group": "Filipino Homes Cares",
     "label": "Filipinohomes Care white logo 2",
     "path": "/images/logos/filipino-homes-cares/filipinohomes-care-white-logo-2.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes-cares/filipinohomes-care-white-logo-2.png"
   },
   {
     "id": "filipino-homes-cares/filipinohomes-healthcare-black-logo",
     "group": "Filipino Homes Cares",
     "label": "Filipinohomes HealthCare black logo",
     "path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-black-logo.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-black-logo-on-dark.png"
   },
   {
     "id": "filipino-homes-cares/filipinohomes-healthcare-blue-logo",
     "group": "Filipino Homes Cares",
     "label": "Filipinohomes HealthCare blue logo",
     "path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-blue-logo.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-blue-logo-on-dark.png"
   },
   {
     "id": "filipino-homes-cares/filipinohomes-healthcare-white-logo",
     "group": "Filipino Homes Cares",
     "label": "Filipinohomes HealthCare white logo",
     "path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-white-logo.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes-cares/filipinohomes-healthcare-white-logo.png"
   },
   {
     "id": "filipino-homes-pin/filipinohomesflatlogo-black-black",
     "group": "Filipino Homes Pin",
     "label": "FilipinoHomesflatlogo black black",
     "path": "/images/logos/filipino-homes-pin/filipinohomesflatlogo-black-black.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/filipino-homes-pin/filipinohomesflatlogo-black-black-on-dark.png"
   },
   {
     "id": "filipino-homes-pin/filipinohomesflatlogo-white",
     "group": "Filipino Homes Pin",
     "label": "FilipinoHomesflatlogo white",
     "path": "/images/logos/filipino-homes-pin/filipinohomesflatlogo-white.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes-pin/filipinohomesflatlogo-white.png"
   },
   {
     "id": "filipino-homes-pin/filipinohomes-pin",
     "group": "Filipino Homes Pin",
     "label": "Filipinohomes Pin",
     "path": "/images/logos/filipino-homes-pin/filipinohomes-pin.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes-pin/filipinohomes-pin.png"
   },
   {
     "id": "filipino-homes-pin/filipinohomes-plus-pin",
     "group": "Filipino Homes Pin",
     "label": "Filipinohomes Plus Pin",
     "path": "/images/logos/filipino-homes-pin/filipinohomes-plus-pin.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/filipino-homes-pin/filipinohomes-plus-pin.png"
   },
   {
     "id": "global-partners/global-partner",
     "group": "Global Partners",
     "label": "global partner",
     "path": "/images/logos/global-partners/global-partner.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/global-partners/global-partner-on-dark.png"
   },
   {
     "id": "global-partners/global-partner-white",
     "group": "Global Partners",
     "label": "global partner white",
     "path": "/images/logos/global-partners/global-partner-white.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/global-partners/global-partner-white.png"
   },
   {
     "id": "global-realty/global-realty-dubai-logo-black-dark-gold",
     "group": "Global Realty",
     "label": "GLOBAL REALTY DUBAI LOGO BLACK DARK GOLD",
     "path": "/images/logos/global-realty/global-realty-dubai-logo-black-dark-gold.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/global-realty/global-realty-dubai-logo-black-dark-gold-on-dark.png"
   },
   {
     "id": "global-realty/global-realty-dubai-logo-white-gold",
     "group": "Global Realty",
     "label": "GLOBAL REALTY DUBAI LOGO WHITE GOLD",
     "path": "/images/logos/global-realty/global-realty-dubai-logo-white-gold.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/global-realty/global-realty-dubai-logo-white-gold.png"
   },
   {
     "id": "leuterio-realty/leuterio-realty-logo-black",
     "group": "Leuterio Realty",
     "label": "Leuterio Realty logo black",
     "path": "/images/logos/leuterio-realty/leuterio-realty-logo-black.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/leuterio-realty/leuterio-realty-logo-black-on-dark.png"
   },
   {
     "id": "leuterio-realty/leuterio-realty-logo-white",
     "group": "Leuterio Realty",
     "label": "Leuterio Realty logo white",
     "path": "/images/logos/leuterio-realty/leuterio-realty-logo-white.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/leuterio-realty/leuterio-realty-logo-white-on-dark.png"
   },
   {
     "id": "real-fh/real-fh-organization-logo-colored-fa-2",
     "group": "Real FH",
     "label": "REAL FH Organization Logo Colored FA 2",
     "path": "/images/logos/real-fh/real-fh-organization-logo-colored-fa-2.png",
-    "tone": "dark"
+    "tone": "dark",
+    "stage_path": "/images/logos/real-fh/real-fh-organization-logo-colored-fa-2.png"
   },
   {
     "id": "rent-ph/rentph-house-logo-1",
     "group": "Rent.ph",
     "label": "RentPH House Logo 1",
     "path": "/images/logos/rent-ph/rentph-house-logo-1.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/rent-ph/rentph-house-logo-1.png"
   },
   {
     "id": "rent-ph/rentph-house-logo-2",
     "group": "Rent.ph",
     "label": "RentPH House Logo 2",
     "path": "/images/logos/rent-ph/rentph-house-logo-2.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/rent-ph/rentph-house-logo-2.png"
   },
   {
     "id": "rent-ph/rentph-new-colored-logo",
     "group": "Rent.ph",
     "label": "RentPh new colored logo",
     "path": "/images/logos/rent-ph/rentph-new-colored-logo.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/rent-ph/rentph-new-colored-logo.png"
   },
   {
     "id": "rent-ph/rentph-new-white-logo",
     "group": "Rent.ph",
     "label": "RentPh new white logo",
     "path": "/images/logos/rent-ph/rentph-new-white-logo.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/rent-ph/rentph-new-white-logo.png"
   },
   {
     "id": "rentsouq/rentsouq-ae-logo",
     "group": "RentSouq",
     "label": "RENTSOUQ AE LOGO",
     "path": "/images/logos/rentsouq/rentsouq-ae-logo.png",
-    "tone": "light"
+    "tone": "light",
+    "stage_path": "/images/logos/rentsouq/rentsouq-ae-logo.png"
+  },
+  {
+    "id": "co-presentor/cli",
+    "group": "Co-Presentor",
+    "label": "CEBU LANDMASTERS (CLI)",
+    "path": "/images/logos/co-presentor/cli.png",
+    "tone": "light",
+    "stage_path": "/images/logos/co-presentor/cli-on-dark.png"
+  },
+  {
+    "id": "major/8990-deca-molave",
+    "group": "Major",
+    "label": "8990 & DECA MOLAVE",
+    "path": "/images/logos/major/8990-deca-molave.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/8990-deca-molave.png"
+  },
+  {
+    "id": "major/8990",
+    "group": "Major",
+    "label": "8990",
+    "path": "/images/logos/major/8990.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/8990.png"
+  },
+  {
+    "id": "major/deca-molave",
+    "group": "Major",
+    "label": "DECA MOLAVE",
+    "path": "/images/logos/major/deca-molave.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/deca-molave.png"
+  },
+  {
+    "id": "major/aeon",
+    "group": "Major",
+    "label": "AEON",
+    "path": "/images/logos/major/aeon.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/aeon-on-dark.png"
+  },
+  {
+    "id": "major/apple-one",
+    "group": "Major",
+    "label": "APPLE ONE",
+    "path": "/images/logos/major/apple-one.png",
+    "tone": "light",
+    "stage_path": "/images/logos/major/apple-one.png"
+  },
+  {
+    "id": "major/be-residences",
+    "group": "Major",
+    "label": "BE RESIDENCES",
+    "path": "/images/logos/major/be-residences.png",
+    "tone": "light",
+    "stage_path": "/images/logos/major/be-residences-on-dark.png"
+  },
+  {
+    "id": "major/filinvest",
+    "group": "Major",
+    "label": "FILINVEST",
+    "path": "/images/logos/major/filinvest.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/filinvest.png"
+  },
+  {
+    "id": "major/grandland",
+    "group": "Major",
+    "label": "GRANDLAND",
+    "path": "/images/logos/major/grandland.png",
+    "tone": "light",
+    "stage_path": "/images/logos/major/grandland.png"
+  },
+  {
+    "id": "major/king-properties",
+    "group": "Major",
+    "label": "KING PROPERTIES",
+    "path": "/images/logos/major/king-properties.png",
+    "tone": "light",
+    "stage_path": "/images/logos/major/king-properties.png"
+  },
+  {
+    "id": "major/eastland",
+    "group": "Major",
+    "label": "EASTLAND",
+    "path": "/images/logos/major/eastland.png",
+    "tone": "light",
+    "stage_path": "/images/logos/major/eastland-on-dark.png"
+  },
+  {
+    "id": "major/mycollex-eastland",
+    "group": "Major",
+    "label": "MYCOLLEX & EASTLAND",
+    "path": "/images/logos/major/mycollex-eastland.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/mycollex-eastland.png"
+  },
+  {
+    "id": "major/mycollex",
+    "group": "Major",
+    "label": "MYCOLLEX",
+    "path": "/images/logos/major/mycollex.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/mycollex.png"
+  },
+  {
+    "id": "major/priland",
+    "group": "Major",
+    "label": "PRILAND",
+    "path": "/images/logos/major/priland.png",
+    "tone": "light",
+    "stage_path": "/images/logos/major/priland.png"
+  },
+  {
+    "id": "major/primary",
+    "group": "Major",
+    "label": "PRIMARY",
+    "path": "/images/logos/major/primary.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/primary-on-dark.png"
+  },
+  {
+    "id": "major/primeworld",
+    "group": "Major",
+    "label": "PRIMEWORLD",
+    "path": "/images/logos/major/primeworld.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/primeworld-on-dark.png"
+  },
+  {
+    "id": "major/pueblo-de-oro",
+    "group": "Major",
+    "label": "PUEBLO DE ORO",
+    "path": "/images/logos/major/pueblo-de-oro.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/pueblo-de-oro.png"
+  },
+  {
+    "id": "major/sterling-land",
+    "group": "Major",
+    "label": "STERLING LAND",
+    "path": "/images/logos/major/sterling-land.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/sterling-land.png"
+  },
+  {
+    "id": "major/weecomm",
+    "group": "Major",
+    "label": "WEECOMM",
+    "path": "/images/logos/major/weecomm.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/major/weecomm-on-dark.png"
+  },
+  {
+    "id": "minor/bdo",
+    "group": "Minor",
+    "label": "BDO",
+    "path": "/images/logos/minor/bdo.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/bdo.png"
+  },
+  {
+    "id": "minor/duros-land",
+    "group": "Minor",
+    "label": "DUROS LAND",
+    "path": "/images/logos/minor/duros-land.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/duros-land.png"
+  },
+  {
+    "id": "minor/eon-realty",
+    "group": "Minor",
+    "label": "EON REALTY",
+    "path": "/images/logos/minor/eon-realty.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/eon-realty.png"
+  },
+  {
+    "id": "minor/explorer-davao",
+    "group": "Minor",
+    "label": "EXPLORER DAVAO",
+    "path": "/images/logos/minor/explorer-davao.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/explorer-davao-on-dark.png"
+  },
+  {
+    "id": "minor/italpinas",
+    "group": "Minor",
+    "label": "ITALPINAS",
+    "path": "/images/logos/minor/italpinas.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/italpinas-on-dark.png"
+  },
+  {
+    "id": "minor/johndorf",
+    "group": "Minor",
+    "label": "JOHNDORF",
+    "path": "/images/logos/minor/johndorf.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/johndorf.png"
+  },
+  {
+    "id": "minor/myvan",
+    "group": "Minor",
+    "label": "MYVAN",
+    "path": "/images/logos/minor/myvan.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/myvan.png"
+  },
+  {
+    "id": "minor/nexus",
+    "group": "Minor",
+    "label": "NEXUS",
+    "path": "/images/logos/minor/nexus.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/nexus-on-dark.png"
+  },
+  {
+    "id": "minor/pacific-land",
+    "group": "Minor",
+    "label": "PACIFIC LAND",
+    "path": "/images/logos/minor/pacific-land.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/pacific-land-on-dark.png"
+  },
+  {
+    "id": "minor/taft",
+    "group": "Minor",
+    "label": "TAFT",
+    "path": "/images/logos/minor/taft.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/minor/taft.png"
+  },
+  {
+    "id": "star-benefactor/a-brown",
+    "group": "Star Benefactor",
+    "label": "A BROWN",
+    "path": "/images/logos/star-benefactor/a-brown.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/a-brown-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/argus-land",
+    "group": "Star Benefactor",
+    "label": "ARGUS LAND",
+    "path": "/images/logos/star-benefactor/argus-land.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/argus-land.png"
+  },
+  {
+    "id": "star-benefactor/contempo",
+    "group": "Star Benefactor",
+    "label": "CONTEMPO",
+    "path": "/images/logos/star-benefactor/contempo.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/contempo-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/contempo-sunberry",
+    "group": "Star Benefactor",
+    "label": "CONTEMPO & SUNBERRY",
+    "path": "/images/logos/star-benefactor/contempo-sunberry.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/contempo-sunberry-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/sunberry",
+    "group": "Star Benefactor",
+    "label": "SUNBERRY",
+    "path": "/images/logos/star-benefactor/sunberry.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/sunberry-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/deca-horizon",
+    "group": "Star Benefactor",
+    "label": "DECA HORIZON",
+    "path": "/images/logos/star-benefactor/deca-horizon.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/deca-horizon.png"
+  },
+  {
+    "id": "star-benefactor/family-merchant",
+    "group": "Star Benefactor",
+    "label": "FAMILY MERCHANT",
+    "path": "/images/logos/star-benefactor/family-merchant.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/family-merchant.png"
+  },
+  {
+    "id": "star-benefactor/ferti-acres",
+    "group": "Star Benefactor",
+    "label": "FERTI ACRES",
+    "path": "/images/logos/star-benefactor/ferti-acres.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/ferti-acres-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/htland",
+    "group": "Star Benefactor",
+    "label": "HTLAND",
+    "path": "/images/logos/star-benefactor/htland.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/htland-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/jamaica",
+    "group": "Star Benefactor",
+    "label": "JAMAICA",
+    "path": "/images/logos/star-benefactor/jamaica.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/jamaica-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/klmr",
+    "group": "Star Benefactor",
+    "label": "KLMR",
+    "path": "/images/logos/star-benefactor/klmr.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/klmr.png"
+  },
+  {
+    "id": "star-benefactor/kisan-lu",
+    "group": "Star Benefactor",
+    "label": "KISAN LU",
+    "path": "/images/logos/star-benefactor/kisan-lu.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/kisan-lu-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/marrea",
+    "group": "Star Benefactor",
+    "label": "MARREA",
+    "path": "/images/logos/star-benefactor/marrea.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/marrea.png"
+  },
+  {
+    "id": "star-benefactor/lyrr",
+    "group": "Star Benefactor",
+    "label": "LYRR",
+    "path": "/images/logos/star-benefactor/lyrr.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/lyrr.png"
+  },
+  {
+    "id": "star-benefactor/naga-queenstown-lyrr",
+    "group": "Star Benefactor",
+    "label": "NAGA QUEENSTOWN & LYRR",
+    "path": "/images/logos/star-benefactor/naga-queenstown-lyrr.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/naga-queenstown-lyrr-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/naga-queenstown",
+    "group": "Star Benefactor",
+    "label": "NAGA QUEENSTOWN",
+    "path": "/images/logos/star-benefactor/naga-queenstown.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/naga-queenstown-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/phirst-park",
+    "group": "Star Benefactor",
+    "label": "PHIRST PARK",
+    "path": "/images/logos/star-benefactor/phirst-park.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/phirst-park-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/prime-homes",
+    "group": "Star Benefactor",
+    "label": "PRIME HOMES",
+    "path": "/images/logos/star-benefactor/prime-homes.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/prime-homes-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/prosperidad",
+    "group": "Star Benefactor",
+    "label": "PROSPERIDAD",
+    "path": "/images/logos/star-benefactor/prosperidad.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/prosperidad.png"
+  },
+  {
+    "id": "star-benefactor/rtu-land-inc",
+    "group": "Star Benefactor",
+    "label": "RTU LAND INC.",
+    "path": "/images/logos/star-benefactor/rtu-land-inc.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/rtu-land-inc-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/rtu-land",
+    "group": "Star Benefactor",
+    "label": "RTU LAND",
+    "path": "/images/logos/star-benefactor/rtu-land.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/rtu-land.png"
+  },
+  {
+    "id": "star-benefactor/riavin",
+    "group": "Star Benefactor",
+    "label": "RIAVIN",
+    "path": "/images/logos/star-benefactor/riavin.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/riavin-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/saekyung",
+    "group": "Star Benefactor",
+    "label": "SAEKYUNG",
+    "path": "/images/logos/star-benefactor/saekyung.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/saekyung.png"
+  },
+  {
+    "id": "star-benefactor/spi",
+    "group": "Star Benefactor",
+    "label": "SHANG PROPERTIES (SPI)",
+    "path": "/images/logos/star-benefactor/spi.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/spi-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/suntrust",
+    "group": "Star Benefactor",
+    "label": "SUNTRUST",
+    "path": "/images/logos/star-benefactor/suntrust.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/suntrust.png"
   }
 ]

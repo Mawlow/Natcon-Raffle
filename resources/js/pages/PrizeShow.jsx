@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCw } from 'lucide-react';
+import { refreshScreen } from '../lib/refreshScreen';
 import api from '../lib/api';
 import { keepIfSame } from '../lib/displaySync';
 import { useLogoSizes } from '../lib/logoSizes';
@@ -147,7 +148,7 @@ async function toggleFullscreen() {
  * screen's own controls, so it is easy to find but barely shows on the wall.
  */
 function FullscreenButton() {
-    const [fullscreen, setFullscreen] = useState(false);
+    const [fullscreen, setFullscreen] = useState(() => Boolean(document.fullscreenElement));
 
     useEffect(() => {
         const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
@@ -156,14 +157,25 @@ function FullscreenButton() {
     }, []);
 
     return (
-        <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="absolute right-4 top-4 z-30 rounded-lg border border-line bg-black/50 p-2.5 text-muted opacity-25 transition-opacity duration-300 hover:text-gold hover:opacity-100 focus:opacity-100"
-            aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-        >
-            {fullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-        </button>
+        <div className="absolute right-4 top-4 z-30 flex items-center gap-2 opacity-25 transition-opacity duration-300 hover:opacity-100 focus-within:opacity-100">
+            <button
+                type="button"
+                onClick={refreshScreen}
+                className="rounded-lg border border-line bg-black/50 p-2.5 text-muted backdrop-blur transition hover:text-gold"
+                aria-label="Refresh"
+                title="Refresh"
+            >
+                <RotateCw size={18} />
+            </button>
+            <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="rounded-lg border border-line bg-black/50 p-2.5 text-muted backdrop-blur transition hover:text-gold"
+                aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+                {fullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+        </div>
     );
 }

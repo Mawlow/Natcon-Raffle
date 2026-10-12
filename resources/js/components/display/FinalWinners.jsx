@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { fitText, winnerName } from '../../lib/format';
 import WinnersGrid from './WinnersGrid';
+import WinnersTitle from './WinnersTitle';
 
 // How many winners share a row, by how many are on screen: few enough per
 // row that each name stays large, enough rows that they all fit.
@@ -34,6 +35,12 @@ const PAGE_MS = 7000;
 // set comes in (the longest exit in winnerTransitions, with its stagger).
 const LEAVE_MS = 800;
 
+/** The prize everyone in `list` won, when they all won the same one. */
+const sharedPrize = (list) => {
+    const prize = list[0]?.prize;
+    return prize && list.every((winner) => winner.prize === prize) ? prize : null;
+};
+
 // The space the list may use across the screen, now that the trophies and
 // palms are gone once the raffle is done.
 const LIST_WIDTH_VW = 92;
@@ -48,7 +55,7 @@ const GAP_VW = 1;
  * stays large. With `autoPage` the pages turn every few seconds and loop;
  * without it they wait for the Control Center. `pageCommand` ({ id, dir })
  * steps a page by hand, and `onPageChange(page, pages)` reports where the
- * pages are. `bare` leaves out the "Congratulations" heading, for the
+ * pages are. `bare` leaves out the "[prize] Winners" heading, for the
  * winners-only display. `fill` lays the names out in a grid that fills the
  * room it is given (see WinnersGrid) — for the winners-only display, whose
  * header carries the heading. `transition` is how the names turn over when
@@ -63,10 +70,11 @@ export default function FinalWinners({
     transition = 'flip',
     pageCommand = null,
     onPageChange,
+    onPrizeChange,
 }) {
     // Kept the same list while the winners are, so a refresh of the screen
     // does not make every name be measured and laid out again.
-    const signature = drawn.map((winner) => `${winner.position}:${winner.ticket_number}:${winner.name ?? ''}`).join('|');
+    const signature = drawn.map((winner) => `${winner.position}:${winner.ticket_number}:${winner.name ?? ''}:${winner.prize ?? ''}:${winner.number ?? ''}`).join('|');
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const winners = useMemo(() => [...drawn].sort((a, b) => a.position - b.position), [signature]);
     const count = winners.length;
@@ -139,6 +147,16 @@ export default function FinalWinners({
         </div>
     );
 
+    // The prize everyone on screen won, if it is the same one: it goes in
+    // the heading, and the cards leave it out. Reported up for the
+    // winners-only display, whose heading is in its own header.
+    const prize = sharedPrize(fill && leaving ? onScreen.winners : shown);
+    // "Winner!" or "Winners!": how many won this prize, across every page.
+    const prizeCount = prize ? winners.filter((winner) => winner.prize === prize).length : winners.length;
+    useEffect(() => {
+        onPrizeChange?.({ prize, count: prizeCount, set: paged ? current + 1 : null });
+    }, [prize, prizeCount, paged, current, onPrizeChange]);
+
     if (fill) {
         return (
             <div className="flex h-full w-full flex-col items-center">
@@ -150,6 +168,7 @@ export default function FinalWinners({
                         winners={leaving ? onScreen.winners : shown}
                         transition={onScreen.transition}
                         leaving={leaving}
+                        showPrize={!prize}
                     />
                 </div>
                 {dots}
@@ -159,8 +178,8 @@ export default function FinalWinners({
     const layoutCount = paged ? perPage : count;
     const columns = Math.max(columnsFor(layoutCount), 1);
     const maxFont = maxFontFor(layoutCount, Math.ceil(layoutCount / columns));
-    // Width of one name, less the card's padding.
-    const nameWidth = (LIST_WIDTH_VW / columns) * 0.8;
+    // Width of one name, less the card's padding and the number beside it.
+    const nameWidth = (LIST_WIDTH_VW / columns) * 0.62;
     const card = layoutCount <= 4
         ? 'px-[clamp(1rem,2vw,2rem)] py-[clamp(0.6rem,1.8vh,1.25rem)]'
         : 'px-[clamp(0.75rem,1.2vw,1.25rem)] py-[clamp(0.5rem,1.4vh,1rem)]';
@@ -168,16 +187,7 @@ export default function FinalWinners({
 
     return (
         <div className="flex w-full flex-col items-center">
-            {!bare && (
-                <motion.p
-                    initial={{ opacity: 0, y: 14, letterSpacing: '0.34em' }}
-                    animate={{ opacity: 1, y: 0, letterSpacing: '0.16em' }}
-                    transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
-                    className="lux-foil pl-[0.16em] font-lux text-[clamp(1.5rem,4.2vw,3.5rem)] font-semibold uppercase leading-none"
-                >
-                    Congratulations!
-                </motion.p>
-            )}
+            {!bare && <WinnersTitle prize={prize} count={prizeCount} set={paged ? current + 1 : null} size="clamp(1.4rem,min(3.8vw,7vh),3.25rem)" />}
             <div className="lux-ornament mt-[clamp(0.75rem,2vh,1.5rem)] w-[min(26rem,70vw)]" aria-hidden="true">
                 <span className="block size-[7px] shrink-0 rotate-45 border border-gold bg-gold/30" />
             </div>
@@ -211,15 +221,33 @@ export default function FinalWinners({
                                     // Solid rather than blurred glass, each on its own layer: a
                                     // backdrop blur behind every card, over the fireworks, was
                                     // redrawn every frame and made the reveal lag.
-                                    className={`flex min-w-0 flex-col items-center justify-center rounded-2xl border border-gold/35 bg-black/65 shadow-gold-sm ${card}`}
-                                    style={{ width: `calc((100% - ${(columns - 1) * GAP_VW}vw) / ${columns})`, willChange: 'transform, opacity' }}
+                                    className={`flex min-w-0 flex-row items-center justify-center gap-[0.6em] rounded-2xl border border-gold/35 bg-black/65 shadow-gold-sm ${card}`}
+                                    style={{ width: `calc((100% - ${(columns - 1) * GAP_VW}vw) / ${columns})`, willChange: 'transform, opacity', fontSize: fitText(sizingText, nameWidth, maxFont, 'vw') }}
                                 >
+                                    {/* The winner's number, left of the name. */}
+                                    <span
+                                        className="grid size-[1.9em] shrink-0 place-items-center rounded-full border-2 border-gold/60 bg-gold/[0.08] font-lux font-bold leading-none text-gold-bright"
+                                        aria-label={`Winner ${winner.number ?? winner.position}`}
+                                    >
+                                        <span style={{ fontSize: (winner.number ?? winner.position) >= 100 ? '0.7em' : '0.9em' }}>{winner.number ?? winner.position}</span>
+                                    </span>
+                                    <span className="flex min-w-0 flex-1 flex-col items-center justify-center">
                                     <span
                                         className="lux-foil line-clamp-2 max-w-full text-balance text-center font-lux font-bold uppercase leading-[1.1] tracking-[0.04em]"
                                         style={{ fontSize: fitText(sizingText, nameWidth, maxFont, 'vw') }}
                                         title={name}
                                     >
                                         {name}
+                                    </span>
+                                    {winner.prize && !prize && (
+                                        <span
+                                            className="mt-[0.35em] line-clamp-1 max-w-full text-center font-lux font-semibold uppercase leading-tight tracking-[0.12em] text-gold/80"
+                                            style={{ fontSize: `calc(${fitText(sizingText, nameWidth, maxFont, 'vw')} * 0.42)` }}
+                                            title={winner.prize}
+                                        >
+                                            {winner.prize}
+                                        </span>
+                                    )}
                                     </span>
                                 </motion.li>
                             );

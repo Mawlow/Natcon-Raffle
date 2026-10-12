@@ -6,7 +6,9 @@ import DashboardLayout from '../components/layout/DashboardLayout';
 import RaffleForm from '../components/raffle/RaffleForm';
 import LoadingState from '../components/ui/LoadingState';
 import EmptyState from '../components/ui/EmptyState';
+import { saveLogoSizes } from '../lib/logoSizes';
 import { useToast } from '../context/ToastContext';
+import { formatNumber } from '../lib/format';
 
 export default function RaffleEditor() {
     const { raffle: raffleId } = useParams();
@@ -16,6 +18,9 @@ export default function RaffleEditor() {
     const [searchParams] = useSearchParams();
     const fromControl = searchParams.get('from') === 'control';
     const controlSetup = searchParams.get('setup') === 'one' ? '?setup=one' : '';
+    // Made inside a raffle file: it starts with the file's participants.
+    const fileId = searchParams.get('file');
+    const [raffleFile, setRaffleFile] = useState(null);
 
     const editing = Boolean(raffleId);
     const [raffle, setRaffle] = useState(null);
@@ -23,6 +28,13 @@ export default function RaffleEditor() {
     const [loadError, setLoadError] = useState(null);
     const [errors, setErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (!fileId || editing) return;
+        api.get(`/raffle-files/${fileId}`)
+            .then(({ data }) => setRaffleFile(data.data))
+            .catch(() => {});
+    }, [fileId, editing]);
 
     useEffect(() => {
         if (!editing) return;
@@ -40,11 +52,18 @@ export default function RaffleEditor() {
         try {
             const { data } = editing
                 ? await api.put(`/raffles/${raffleId}`, payload)
-                : await api.post('/raffles', payload);
+                : await api.post('/raffles', fileId ? { ...payload, raffle_file_id: Number(fileId) } : payload);
+            saveLogoSizes(data.data.id, payload.logo_sizes);
 
             if (editing) {
                 toast.success('Raffle updated.');
                 navigate(`/raffles/${raffleId}`);
+            } else if (fileId) {
+                // Back to the file: its participants are already in, so the next raffle can be made.
+                toast.success(data.data.status === 'READY'
+                    ? `"${data.data.name}" is ready to draw with ${formatNumber(data.data.participants_count)} participants.`
+                    : `"${data.data.name}" saved. Upload the file's participants to make it ready to draw.`);
+                navigate(`/raffle-files/${fileId}`);
             } else if (fromControl) {
                 // Straight into the new raffle's Control Center, ready to put on the wall.
                 toast.success('Raffle created. Import its participants, then show it on the LED wall.');
@@ -66,7 +85,11 @@ export default function RaffleEditor() {
     return (
         <DashboardLayout
             title={editing ? 'Edit raffle' : 'New raffle'}
-            subtitle={editing ? raffle?.name : 'Configure the prize, winners and presentation'}
+            subtitle={editing
+                ? raffle?.name
+                : fileId
+                    ? `In ${raffleFile?.name ?? 'the raffle file'} — prizes, logos and who can win, saved ready to draw`
+                    : 'Name, logos and how the draw runs — the winners and prize are set in the Control Center'}
             actions={
                 <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
                     <ArrowLeft size={15} /> Back
@@ -81,10 +104,11 @@ export default function RaffleEditor() {
                 <div className="mx-auto max-w-3xl">
                     <RaffleForm
                         raffle={raffle}
+                        raffleFile={raffleFile}
                         errors={errors}
                         submitting={submitting}
                         onSubmit={submit}
-                        onCancel={() => navigate(editing ? `/raffles/${raffleId}` : '/raffles')}
+                        onCancel={() => navigate(editing ? `/raffles/${raffleId}` : fileId ? `/raffle-files/${fileId}` : '/raffles')}
                     />
                 </div>
             )}

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Maximize2, Minimize2, Play, Radio, Volume2, VolumeX } from 'lucide-react';
+import { Maximize2, Minimize2, Play, Radio, RotateCw, Volume2, VolumeX } from 'lucide-react';
+import { refreshScreen } from '../lib/refreshScreen';
 import api, { parseError } from '../lib/api';
 import { useSoundEngine } from '../lib/useSound';
 import { HEARTBEAT_MS, PRESENCE_TIMEOUT_MS, keepIfSame, keepWinnersIfSame, openDisplayChannel, usePresence } from '../lib/displaySync';
@@ -14,14 +15,19 @@ import WinnerStrip, { SIDE_LAYOUT_FROM, WinnerSides } from '../components/displa
 import FinalWinners from '../components/display/FinalWinners';
 import FitBox from '../components/display/FitBox';
 import SingleScreenHeader from '../components/display/SingleScreenHeader';
+import { batchKey, batchRemaining, batchSize, winnerPrizeLabel, withPrizeOnStage } from '../lib/prizes';
 import ShowcaseHeader from '../components/display/ShowcaseHeader';
 import HashtagMark from '../components/display/HashtagMark';
 import PrizeShow from './PrizeShow';
 import { useWallSwitch } from '../lib/wallSwitch';
+import { initLiteMode } from '../lib/liteMode';
 import { DEFAULT_TRANSITION, isTransition } from '../components/display/winnerTransitions';
 import MainScreenHeader from '../components/display/MainScreenHeader';
 import { useLogoSizes } from '../lib/logoSizes';
-import { EventBackdrop, Trophy } from '../components/landing/EventScene';
+import { EVENT, EventBackdrop, Trophy } from '../components/landing/EventScene';
+import LandingHero from '../components/landing/LandingHero';
+import SponsorShow from '../components/display/SponsorShow';
+import { DEFAULT_SPONSOR_INTERVAL, DEFAULT_SPONSOR_LOGO_SIZE, SPONSOR_INTERVALS, clampSponsorLogoSize, wrapSlide } from '../lib/sponsors';
 
 /** idle → ready → countdown → drawing → reveal → complete */
 const PHASES = {
@@ -40,7 +46,55 @@ const PHASES = {
  *   - one screen    (/raffle/{id}/single):  `single` — the draw together with
  *     the logos, raffle title, prize and the winners so far.
  */
-export default function PublicDisplay({ single = false }) {
+/**
+ * The main screen, with a short fade from black whenever it changes what it
+ * shows — sponsors, the welcome, the prize show, the raffle. The new screen
+ * is built under the curtain, so a weaker device (a smart TV) never shows
+ * the stutter of everything starting at once; one fading layer is cheap on
+ * any screen.
+ */
+export default function PublicDisplay(props) {
+    const [screen, setScreen] = useState(null);
+    useEffect(() => { initLiteMode(); }, []);
+
+    return (
+        <>
+            <DisplayScreens {...props} onScreen={setScreen} />
+            <SwitchCurtain screen={screen} />
+        </>
+    );
+}
+
+function SwitchCurtain({ screen }) {
+    const [covered, setCovered] = useState(false);
+    const first = useRef(true);
+
+    useEffect(() => {
+        if (screen === null) return undefined;
+        // The first screen opens as it always has.
+        if (first.current) {
+            first.current = false;
+            return undefined;
+        }
+        setCovered(true);
+        const timer = setTimeout(() => setCovered(false), 260);
+        return () => clearTimeout(timer);
+    }, [screen]);
+
+    return (
+        <div
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-0 z-[200] bg-ink"
+            style={{
+                opacity: covered ? 1 : 0,
+                transition: covered ? 'none' : 'opacity 650ms ease-out',
+                willChange: 'opacity',
+            }}
+        />
+    );
+}
+
+function DisplayScreens({ single = false, onScreen }) {
     const { raffle: raffleId } = useParams();
     // The Control Center can move this window to another raffle.
     useWallSwitch(single ? 'single' : 'display', raffleId);
@@ -61,7 +115,7 @@ export default function PublicDisplay({ single = false }) {
     const [target, setTarget] = useState(null);
     const [drawError, setDrawError] = useState(null);
     const [soundOn, setSoundOn] = useState(true);
-    const [fullscreen, setFullscreen] = useState(false);
+    const [fullscreen, setFullscreen] = useState(() => Boolean(document.fullscreenElement));
     // "All in one draw": after each reveal the next winner is drawn on its own
     // until every slot is filled.
     const [autoRun, setAutoRun] = useState(false);
@@ -71,7 +125,7 @@ export default function PublicDisplay({ single = false }) {
     const { unlock, play, stop: stopSound } = useSoundEngine(soundOn);
     const lastTickRef = useRef(0);
     const drawInFlightRef = useRef(false);
-    // The 3-2-1 countdown opens the raffle once. Every later winner — or any
+    // The 5-4-3-2-1 countdown opens the raffle once. Every later winner — or any
     // winner after the first, if the screen is reopened mid-raffle — goes
     // straight to the roll.
     const countdownPlayedRef = useRef(false);
@@ -83,7 +137,10 @@ export default function PublicDisplay({ single = false }) {
     raffleRef.current = raffle;
 
     const settings = raffle?.settings;
-    const remaining = raffle ? raffle.winners_count - winners.length : 0;
+    // With prize tiers, what is left of the prize being drawn: "draw them
+    // all" and the auto-run stop at the end of each prize. Without tiers (and
+    // once every prize is full) it is what is left of the whole raffle.
+    const remaining = batchRemaining(raffle, winners);
     const allDrawn = raffle ? remaining <= 0 : false;
     const manyWinners = (raffle?.winners_count ?? 0) > 1;
     // "One drumroll, all revealed": one countdown and one roll, then every
@@ -189,6 +246,7 @@ export default function PublicDisplay({ single = false }) {
             }
 
             stopSound();
+            pendingDrawRef.current = null;
             setRaffle(fresh);
             setWinners(freshWinners);
             setCurrentWinner(null);
@@ -257,39 +315,24 @@ export default function PublicDisplay({ single = false }) {
         }
     }, [play, settings]);
 
-    const handleCountdownComplete = useCallback(() => {
-        countdownPlayedRef.current = true;
-        startRoll();
-    }, [startRoll]);
+    // The draw waiting for the countdown to end. The server is only asked
+    // for a winner once the names start rolling, so nobody is drawn — and a
+    // refresh shows no winner — while the countdown is still running.
+    const pendingDrawRef = useRef(null);
 
-    const beginSequence = useCallback((presetWinner = null, options = {}) => {
-        setDrawError(null);
-        setTarget(null);
-        setCurrentWinner(presetWinner);
-
-        if (countdownPlayedRef.current || winnersCountRef.current > 0) {
-            startRoll();
-        } else {
-            setPhase(PHASES.COUNTDOWN);
-        }
-
-        if (presetWinner && options.skipRequest) return;
-
-        // The request goes out while the countdown plays, so the winning ticket is
-        // already in hand by the time the roller needs to settle. The server —
-        // never this screen — decides the number.
+    const requestDraw = useCallback(({ together = false, requestId = null } = {}) => {
         if (drawInFlightRef.current) return;
         drawInFlightRef.current = true;
 
-        const requestId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+        // One id per DRAW: a retry, or a second main screen answering the
+        // same command, gets the same winner back instead of a new one.
+        const id = requestId ?? (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
         // Revealing together draws every remaining winner in one request; the
         // group is revealed when the single roll ends.
-        const request = options.together
-            ? api.post(`/raffles/${raffleId}/draw-all`, { request_id: requestId })
-                .then(({ data }) => setCurrentWinner({ group: data.data.winners }))
-            : api.post(`/raffles/${raffleId}/draw`, { request_id: requestId })
-                .then(({ data }) => setCurrentWinner(data.data));
+        const request = together
+            ? postDraw(`/raffles/${raffleId}/draw-all`, id).then(({ data }) => setCurrentWinner({ group: data.data.winners }))
+            : postDraw(`/raffles/${raffleId}/draw`, id).then(({ data }) => setCurrentWinner(data.data));
 
         request
             .catch((error) => {
@@ -299,10 +342,35 @@ export default function PublicDisplay({ single = false }) {
                 setPhase(PHASES.READY);
                 stopSound();
                 // A group draw can fail part way; show whoever was drawn.
-                if (options.together) load();
+                if (together) load();
             })
             .finally(() => { drawInFlightRef.current = false; });
-    }, [raffleId, stopSound, startRoll, load]);
+    }, [raffleId, stopSound, load]);
+
+    const handleCountdownComplete = useCallback(() => {
+        countdownPlayedRef.current = true;
+        startRoll();
+        const pending = pendingDrawRef.current;
+        pendingDrawRef.current = null;
+        if (pending) requestDraw(pending);
+    }, [startRoll, requestDraw]);
+
+    const beginSequence = useCallback((presetWinner = null, options = {}) => {
+        setDrawError(null);
+        setTarget(null);
+        setCurrentWinner(presetWinner);
+
+        const ask = presetWinner && options.skipRequest ? null : options;
+
+        if (countdownPlayedRef.current || winnersCountRef.current > 0) {
+            startRoll();
+            if (ask) requestDraw(ask);
+        } else {
+            // The first draw counts down first; the request waits for it.
+            pendingDrawRef.current = ask;
+            setPhase(PHASES.COUNTDOWN);
+        }
+    }, [startRoll, requestDraw]);
 
 
     // The group reveal is timed rather than driven by the roller, so its
@@ -352,6 +420,8 @@ export default function PublicDisplay({ single = false }) {
                 position: winner.position,
                 ticket_number: winner.ticket_number,
                 name: winner.name,
+                prize_id: winner.prize_id ?? null,
+                prize_name: winner.prize_name ?? null,
                 drawn_at: winner.drawn_at,
             }))];
         });
@@ -361,11 +431,16 @@ export default function PublicDisplay({ single = false }) {
     // How long each winner stays on screen before the next one is drawn
     // automatically — long enough for the reveal and the applause.
     const AUTO_NEXT_DELAY_MS = 4500;
+    // The prize an auto-run started on.
+    const autoPrizeRef = useRef(null);
 
     useEffect(() => {
         if (!autoRun || phase !== PHASES.REVEAL || !raffle) return undefined;
 
         const finished = winners.length >= raffle.winners_count;
+        // The prize being drawn is full: its last winner stays up until the
+        // operator moves on to the next prize.
+        const prizeDone = batchKey(raffle, winners) !== autoPrizeRef.current;
         const timer = setTimeout(() => {
             stopSound();
             if (finished) {
@@ -373,6 +448,8 @@ export default function PublicDisplay({ single = false }) {
                 setTarget(null);
                 setCurrentWinner(null);
                 setPhase(PHASES.COMPLETE);
+            } else if (prizeDone) {
+                setAutoRun(false);
             } else {
                 beginSequence();
             }
@@ -382,15 +459,20 @@ export default function PublicDisplay({ single = false }) {
     }, [autoRun, phase, raffle, winners.length, beginSequence, stopSound]);
 
     const handleDraw = useCallback((options = {}) => {
-        const together = Boolean(options.together) && remaining > 1;
+        const requestId = options.requestId ?? null;
+        autoPrizeRef.current = batchKey(raffleRef.current, winners);
+        // A prize with a single winner is drawn like a batch of one, so it goes
+        // straight to the winners page, just as several winners drawn together do.
+        const single = remaining === 1 && batchSize(raffleRef.current, winners) === 1;
+        const together = (Boolean(options.together) && remaining > 1) || single;
         setTogetherChosen(together);
         if (together) {
-            beginSequence(null, { together: true });
+            beginSequence(null, { together: true, requestId });
             return;
         }
         if (drawAllMode) setAutoRun(true);
-        beginSequence();
-    }, [remaining, drawAllMode, beginSequence]);
+        beginSequence(null, { requestId });
+    }, [remaining, drawAllMode, beginSequence, winners]);
 
     const handleNext = useCallback(() => {
         const finished = raffle && winners.length >= raffle.winners_count;
@@ -441,6 +523,8 @@ export default function PublicDisplay({ single = false }) {
     // switch back to the normal design, choose a smaller batch size and
     // bring up each batch.
     const [showcase, setShowcase] = useState(false);
+    // The prize the winners-only display's current page is for, and how many won it, for its heading.
+    const [showcasePrize, setShowcasePrize] = useState(null);
     const [perPage, setPerPage] = useState(0);
     // How much of the bottom of the wall stays empty once the winners are
     // out (% of the screen height): the low rows of an LED wall are hidden
@@ -453,6 +537,46 @@ export default function PublicDisplay({ single = false }) {
     // window or to leave fullscreen. Kept across a reload.
     const [prizeMode, setPrizeMode] = useState(() => loadPrizeMode(raffleId));
     useEffect(() => savePrizeMode(raffleId, prizeMode), [raffleId, prizeMode]);
+    // The welcome screen: the landing page's hero on the wall until the draw
+    // starts. Until the Control Center says otherwise it is on for a raffle
+    // with nothing drawn yet; START, DRAW and the Prize Display take it down.
+    // Kept across a reload (null = not chosen yet).
+    const [welcomeChoice, setWelcomeChoice] = useState(() => loadWelcome(raffleId));
+    const chooseWelcome = useCallback((on) => setWelcomeChoice(saveWelcome(raffleId, on)), [raffleId]);
+    const welcome = welcomeChoice ?? (raffle ? winners.length === 0 && phase === PHASES.IDLE : false);
+    // Which day the welcome screen shows: '18', '19', or 'both' for the
+    // convention's dates. Chosen in the Control Center; one choice for
+    // every raffle, kept across a reload.
+    const [welcomeDay, setWelcomeDay] = useState(loadWelcomeDay);
+    // The sponsor show: every sponsor's logo, tier by tier, on the wall
+    // between draws. The Control Center turns it on, steps through it or
+    // lets it play; START, DRAW, the welcome screen and the Prize Display
+    // take it down. Kept across a reload.
+    const [sponsors, setSponsors] = useState(() => loadSponsors(raffleId));
+    useEffect(() => saveSponsors(raffleId, sponsors), [raffleId, sponsors]);
+    const [sponsorSlide, setSponsorSlide] = useState(0);
+    const [sponsorPlaying, setSponsorPlaying] = useState(true);
+    const [sponsorInterval, setSponsorInterval] = useState(loadSponsorInterval);
+    // The NATCON logo's size atop the sponsor show (%), one for every raffle.
+    const [sponsorLogoSize, setSponsorLogoSize] = useState(loadSponsorLogoSize);
+    // Playing, each slide turns over after the interval; a hand step restarts the wait.
+    useEffect(() => {
+        if (!sponsors || !sponsorPlaying) return undefined;
+        const timer = setTimeout(() => setSponsorSlide((slide) => wrapSlide(slide + 1)), sponsorInterval * 1000);
+        return () => clearTimeout(timer);
+    }, [sponsors, sponsorPlaying, sponsorSlide, sponsorInterval]);
+    // The winners list shows what each winner won under their name.
+    // Each winner's number in their box counts within their prize — 1 to 5
+    // for five winners of ₱5,000 — matching the "(5)" in the heading.
+    const prizedWinners = useMemo(() => {
+        const counted = {};
+        return [...winners].sort((a, b) => a.position - b.position).map((winner) => {
+            const prize = winnerPrizeLabel(raffle, winner);
+            const key = prize ?? '';
+            counted[key] = (counted[key] ?? 0) + 1;
+            return { ...winner, prize, number: counted[key] };
+        });
+    }, [winners, raffle]);
     const allRevealed = phase === PHASES.COMPLETE
         || (phase === PHASES.IDLE && allDrawn)
         || (phase === PHASES.REVEAL && Boolean(currentWinner?.group));
@@ -493,7 +617,14 @@ export default function PublicDisplay({ single = false }) {
         bottomSpace,
         transition,
         prizeMode,
-    }), [single, phase, winners, currentWinner, raffle, remaining, allDrawn, drawAllMode, autoRun, drawError, canDraw, finalPages, allRevealed, showcase, perPage, bottomSpace, transition, prizeMode]);
+        welcome,
+        welcomeDay,
+        sponsors,
+        sponsorSlide,
+        sponsorPlaying,
+        sponsorInterval,
+        sponsorLogoSize,
+    }), [single, phase, winners, currentWinner, raffle, remaining, allDrawn, drawAllMode, autoRun, drawError, canDraw, finalPages, allRevealed, showcase, perPage, bottomSpace, transition, prizeMode, welcome, welcomeDay, sponsors, sponsorSlide, sponsorPlaying, sponsorInterval, sponsorLogoSize]);
     const syncStateRef = useRef(syncState);
     syncStateRef.current = syncState;
 
@@ -506,12 +637,49 @@ export default function PublicDisplay({ single = false }) {
     commandRef.current = (action, message = {}) => {
         if (!canDraw || !raffle) return;
 
-        // Starting or drawing brings the draw back from the Prize Display.
-        if (action === 'start' || action === 'draw') setPrizeMode(false);
+        // Starting or drawing brings the draw back from the Prize Display,
+        // the welcome screen and the sponsor show.
+        if (action === 'start' || action === 'draw') {
+            setPrizeMode(false);
+            chooseWelcome(false);
+            setSponsors(false);
+        }
 
-        if (action === 'prize-mode') setPrizeMode(Boolean(message.on));
+        // Not over a draw in progress.
+        const between = [PHASES.IDLE, PHASES.READY, PHASES.COMPLETE].includes(phase);
+
+        if (action === 'prize-mode') {
+            setPrizeMode(Boolean(message.on));
+            if (message.on) {
+                chooseWelcome(false);
+                setSponsors(false);
+            }
+        } else if (action === 'welcome') {
+            if (message.on && !between) return;
+            chooseWelcome(Boolean(message.on));
+            if (message.on) {
+                setPrizeMode(false);
+                setSponsors(false);
+            }
+        } else if (action === 'sponsors') {
+            if (message.on && !between) return;
+            setSponsors(Boolean(message.on));
+            if (message.on) {
+                // Always from the co-presenter, playing.
+                setSponsorSlide(0);
+                setSponsorPlaying(true);
+                setPrizeMode(false);
+                chooseWelcome(false);
+            }
+        }
+        else if (action === 'sponsor-step') setSponsorSlide((slide) => wrapSlide(slide + (message.dir === -1 ? -1 : 1)));
+        else if (action === 'sponsor-slide' && Number.isInteger(message.index)) setSponsorSlide(wrapSlide(message.index));
+        else if (action === 'sponsor-play') setSponsorPlaying(Boolean(message.on));
+        else if (action === 'sponsor-interval' && SPONSOR_INTERVALS.includes(message.seconds)) setSponsorInterval(saveSponsorInterval(message.seconds));
+        else if (action === 'sponsor-logo-size' && Number.isFinite(message.value)) setSponsorLogoSize(saveSponsorLogoSize(clampSponsorLogoSize(message.value)));
+        else if (action === 'welcome-day' && isWelcomeDay(message.day)) setWelcomeDay(saveWelcomeDay(message.day));
         else if (action === 'start' && phase === PHASES.IDLE && !allDrawn) startEvent();
-        else if (action === 'draw' && phase === PHASES.READY) handleDraw({ together: message.together });
+        else if (action === 'draw' && phase === PHASES.READY) handleDraw({ together: message.together, requestId: message.id });
         else if (action === 'next' && phase === PHASES.REVEAL && !autoRun) handleNext();
         else if (action === 'refresh') resyncRef.current?.({ force: true });
         else if (action === 'page') setPageCommand({ id: Date.now(), dir: message.dir === -1 ? -1 : 1 });
@@ -557,10 +725,52 @@ export default function PublicDisplay({ single = false }) {
         if (raffle) postState();
     }, [raffle, syncState, postState]);
 
+    // Tell the curtain what is on screen, so a change of screen fades in.
+    const shownScreen = loading ? null : prizeMode ? 'prize' : sponsors ? 'sponsors' : welcome ? 'welcome' : 'raffle';
+    useEffect(() => { onScreen?.(shownScreen); }, [shownScreen, onScreen]);
+
     /* ------------------------------------------------------------------ *
      * Render
      * ------------------------------------------------------------------ */
     if (prizeMode) return <PrizeShow />;
+
+    if (sponsors && !loading && !loadError) {
+        return (
+            <SponsorShow slide={sponsorSlide} logoSize={sponsorLogoSize}>
+                <ScreenButtons fullscreen={fullscreen} onFullscreen={toggleFullscreen} />
+            </SponsorShow>
+        );
+    }
+
+    if (welcome && !loading && !loadError) {
+        return (
+            <div className="relative h-dvh w-full overflow-hidden bg-ink">
+                <EventBackdrop />
+                <div className="relative z-10">
+                    {/* Raised off the foot of the wall, which the audience's heads hide. */}
+                    <LandingHero bottomClass="pb-[16vh]" dates={EVENT.days[welcomeDay] ?? EVENT.dates}
+                        dateClass="text-[clamp(1.25rem,3vw,2.5rem)]"
+                    />
+                </div>
+                {/* The hashtag along the foot, as on every other screen. */}
+                <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center">
+                    <HashtagMark />
+                </div>
+                <ScreenButtons fullscreen={fullscreen} onFullscreen={toggleFullscreen} />
+                {/* Pressing START here, with no Control Center open, starts the draw. */}
+                {canDraw && !controlled && !allDrawn && (
+                    <button
+                        type="button"
+                        onClick={() => { chooseWelcome(false); startEvent(); }}
+                        className="btn btn-gold absolute bottom-4 right-4 z-30 px-4 py-2 text-xs opacity-25 transition-opacity duration-300 hover:opacity-100 focus-visible:opacity-100"
+                    >
+                        <Play size={14} />
+                        START RAFFLE
+                    </button>
+                )}
+            </div>
+        );
+    }
 
     if (loading) {
         return (
@@ -623,6 +833,15 @@ export default function PublicDisplay({ single = false }) {
                 </button>
                 <button
                     type="button"
+                    onClick={refreshScreen}
+                    className="rounded-lg border border-line bg-black/50 p-2.5 text-muted backdrop-blur transition hover:text-gold"
+                    aria-label="Refresh"
+                    title="Refresh"
+                >
+                    <RotateCw size={18} />
+                </button>
+                <button
+                    type="button"
                     onClick={toggleFullscreen}
                     className="rounded-lg border border-line bg-black/50 p-2.5 text-muted backdrop-blur transition hover:text-gold"
                     aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -640,10 +859,10 @@ export default function PublicDisplay({ single = false }) {
             )}
 
             {showcaseOn ? (
-                // Winners-only display: the logos either side of "Congratulations".
-                <ShowcaseHeader logos={raffle.logos ?? []} left={raffle.logo_left} right={raffle.logo_right} sizes={logoSizes} />
+                // Winners-only display: the logos either side of "[prize] Winners".
+                <ShowcaseHeader logos={raffle.logos ?? []} left={raffle.logo_left} right={raffle.logo_right} sizes={logoSizes} prize={showcasePrize?.prize ?? null} count={showcasePrize?.count ?? null} set={showcasePrize?.set ?? null} />
             ) : single
-                ? <SingleScreenHeader raffle={raffle} sizes={logoSizes} />
+                ? <SingleScreenHeader raffle={withPrizeOnStage(raffle, phase, winners)} sizes={logoSizes} />
                 : <MainScreenHeader sizes={logoSizes} />}
 
             {/* Stage: sits just under the header rather than centred in the
@@ -674,7 +893,7 @@ export default function PublicDisplay({ single = false }) {
                         className="min-h-0 w-full flex-1"
                     >
                         <FinalWinners
-                            winners={winners}
+                            winners={prizedWinners}
                             bare
                             fill
                             transition={transition}
@@ -682,6 +901,7 @@ export default function PublicDisplay({ single = false }) {
                             pageSize={perPage}
                             pageCommand={pageCommand}
                             onPageChange={handlePageChange}
+                            onPrizeChange={setShowcasePrize}
                         />
                     </motion.div>
                 )}
@@ -694,7 +914,7 @@ export default function PublicDisplay({ single = false }) {
                         so a finished raffle just closes the show here. */}
                     {!showcaseOn && phase === PHASES.IDLE && allDrawn && (
                         <Stage key="finished">
-                            {single ? <FinalWinners winners={winners} pageCommand={pageCommand} onPageChange={handlePageChange} /> : <RaffleDone />}
+                            {single ? <FinalWinners winners={prizedWinners} pageCommand={pageCommand} onPageChange={handlePageChange} /> : <RaffleDone />}
                         </Stage>
                     )}
 
@@ -750,7 +970,7 @@ export default function PublicDisplay({ single = false }) {
                     {!showcaseOn && phase === PHASES.COUNTDOWN && (
                         <Stage key="countdown">
                             <Countdown
-                                from={settings?.countdown_seconds ?? 3}
+                                from={settings?.countdown_seconds ?? 5}
                                 onTick={handleCountdownTick}
                                 onComplete={handleCountdownComplete}
                             />
@@ -765,12 +985,12 @@ export default function PublicDisplay({ single = false }) {
                                     transition={{ duration: 1.4, repeat: Infinity }}
                                     className="mb-[clamp(0.5rem,2vh,1.5rem)] font-display text-[clamp(0.8rem,2vw,1.5rem)] font-bold uppercase tracking-[0.4em] text-gold"
                                 >
-                                    {revealTogether && remaining > 1 ? `Drawing ${remaining} winners…` : 'Drawing…'}
+                                    {revealTogether && remaining > 1 ? 'Drawing winners…' : 'Drawing…'}
                                 </motion.p>
                             )}
 
                             {groupReveal ? (
-                                <FinalWinners winners={winners} pageCommand={pageCommand} onPageChange={handlePageChange} />
+                                <FinalWinners winners={prizedWinners} pageCommand={pageCommand} onPageChange={handlePageChange} />
                             ) : showReveal ? (
                                 <WinnerReveal
                                     position={currentWinner?.position}
@@ -808,7 +1028,7 @@ export default function PublicDisplay({ single = false }) {
 
                     {!showcaseOn && phase === PHASES.COMPLETE && (
                         <Stage key="complete">
-                            {single ? <FinalWinners winners={winners} pageCommand={pageCommand} onPageChange={handlePageChange} /> : <RaffleDone />}
+                            {single ? <FinalWinners winners={prizedWinners} pageCommand={pageCommand} onPageChange={handlePageChange} /> : <RaffleDone />}
                         </Stage>
                     )}
                 </AnimatePresence>
@@ -836,6 +1056,159 @@ export default function PublicDisplay({ single = false }) {
             </div>
         </Shell>
     );
+}
+
+/** The welcome screen's refresh and fullscreen buttons, faint until the operator reaches for them. */
+function ScreenButtons({ fullscreen, onFullscreen }) {
+    return (
+        <div className="absolute right-4 top-4 z-30 flex items-center gap-2 opacity-25 transition-opacity duration-300 hover:opacity-100 focus-within:opacity-100">
+            <button
+                type="button"
+                onClick={refreshScreen}
+                className="rounded-lg border border-line bg-black/50 p-2.5 text-muted backdrop-blur transition hover:text-gold"
+                aria-label="Refresh"
+                title="Refresh"
+            >
+                <RotateCw size={18} />
+            </button>
+            <button
+                type="button"
+                onClick={onFullscreen}
+                className="rounded-lg border border-line bg-black/50 p-2.5 text-muted backdrop-blur transition hover:text-gold"
+                aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+                {fullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+        </div>
+    );
+}
+
+/**
+ * Asks the server for a winner, retrying what can safely be retried: the
+ * draw lock still held by an earlier request, a dropped connection, an
+ * expired session token or the rate limit. Every try carries the same
+ * request id, and the server answers a repeated id with the winner it
+ * already drew — so a retry never draws anyone twice.
+ */
+async function postDraw(url, requestId) {
+    const tries = 6;
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            return await api.post(url, { request_id: requestId });
+        } catch (error) {
+            const status = error?.response?.status;
+            const code = error?.response?.data?.code;
+            const retry = !error?.response
+                || status === 419
+                || status === 429
+                || (status === 409 && code === 'DRAW_IN_PROGRESS');
+            if (!retry || attempt >= tries) throw error;
+            // An expired session token: any request hands back a fresh one.
+            if (status === 419) await api.get('/me').catch(() => {});
+            await new Promise((resolve) => setTimeout(resolve, status === 429 ? 2500 : 600 * attempt));
+        }
+    }
+}
+
+const WELCOME_DAY_KEY = 'natcon-welcome-day';
+const isWelcomeDay = (day) => day === 'both' || day === '18' || day === '19';
+
+function loadWelcomeDay() {
+    try {
+        const stored = window.localStorage.getItem(WELCOME_DAY_KEY);
+        return isWelcomeDay(stored) ? stored : 'both';
+    } catch {
+        return 'both';
+    }
+}
+
+function saveWelcomeDay(day) {
+    try {
+        window.localStorage.setItem(WELCOME_DAY_KEY, day);
+    } catch {
+        /* Storage can be blocked; the choice then lasts until a reload. */
+    }
+    return day;
+}
+
+const sponsorsKey = (raffleId) => `natcon-sponsors-${raffleId}`;
+
+function loadSponsors(raffleId) {
+    try {
+        return window.localStorage.getItem(sponsorsKey(raffleId)) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function saveSponsors(raffleId, on) {
+    try {
+        window.localStorage.setItem(sponsorsKey(raffleId), on ? '1' : '0');
+    } catch {
+        /* Storage can be blocked; the choice then lasts until a reload. */
+    }
+}
+
+const SPONSOR_INTERVAL_KEY = 'natcon-sponsor-interval';
+
+function loadSponsorInterval() {
+    try {
+        const stored = Number(window.localStorage.getItem(SPONSOR_INTERVAL_KEY));
+        return SPONSOR_INTERVALS.includes(stored) ? stored : DEFAULT_SPONSOR_INTERVAL;
+    } catch {
+        return DEFAULT_SPONSOR_INTERVAL;
+    }
+}
+
+function saveSponsorInterval(seconds) {
+    try {
+        window.localStorage.setItem(SPONSOR_INTERVAL_KEY, String(seconds));
+    } catch {
+        /* Storage can be blocked; the choice then lasts until a reload. */
+    }
+    return seconds;
+}
+
+const SPONSOR_LOGO_SIZE_KEY = 'natcon-sponsor-logo-size';
+
+function loadSponsorLogoSize() {
+    try {
+        const stored = window.localStorage.getItem(SPONSOR_LOGO_SIZE_KEY);
+        return stored === null ? DEFAULT_SPONSOR_LOGO_SIZE : clampSponsorLogoSize(Number(stored) || DEFAULT_SPONSOR_LOGO_SIZE);
+    } catch {
+        return DEFAULT_SPONSOR_LOGO_SIZE;
+    }
+}
+
+function saveSponsorLogoSize(size) {
+    try {
+        window.localStorage.setItem(SPONSOR_LOGO_SIZE_KEY, String(size));
+    } catch {
+        /* Storage can be blocked; the choice then lasts until a reload. */
+    }
+    return size;
+}
+
+const welcomeKey = (raffleId) => `natcon-welcome-${raffleId}`;
+
+/** true / false as last chosen for this raffle, or null if never chosen. */
+function loadWelcome(raffleId) {
+    try {
+        const stored = window.localStorage.getItem(welcomeKey(raffleId));
+        return stored === null ? null : stored === '1';
+    } catch {
+        return null;
+    }
+}
+
+function saveWelcome(raffleId, on) {
+    try {
+        window.localStorage.setItem(welcomeKey(raffleId), on ? '1' : '0');
+    } catch {
+        /* Storage can be blocked; the choice then lasts until a reload. */
+    }
+    return on;
 }
 
 const TRANSITION_KEY = 'natcon-winner-transition';

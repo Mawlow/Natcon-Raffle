@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Gift, Loader2, Monitor, MousePointerClick, Play, RotateCcw, SkipForward, Sparkles, Trophy } from 'lucide-react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Undo2, Wand2, ChevronLeft, ChevronRight, ExternalLink, Gift, Image as ImageIcon, Loader2, Monitor, MousePointerClick, Play, RotateCcw, SkipForward, Sparkles, Trophy, Users } from 'lucide-react';
 import api, { parseError } from '../lib/api';
 import { formatNumber, formatPrizeValue, winnerName } from '../lib/format';
 import { HEARTBEAT_MS, PRESENCE_TIMEOUT_MS, keepIfSame, openDisplayChannel, useNow } from '../lib/displaySync';
 import StatusChip from '../components/ui/StatusChip';
 import CornerLogoPanel from '../components/raffle/CornerLogoPanel';
+import CompanyLogoPanel from '../components/raffle/CompanyLogoPanel';
+import PredrawPanel from '../components/raffle/PredrawPanel';
+import RaffleSetupSection from '../components/raffle/RaffleSetupSection';
+import AllRafflesPanel from '../components/raffle/AllRafflesPanel';
+import AttendancePanel from '../components/raffle/AttendancePanel';
+import { switchWall, useWallRaffle } from '../lib/wallSwitch';
+import { batchRemaining, hasPrizes, hasStagedPrizes, withPrizeOnStage } from '../lib/prizes';
 import PrizeDisplayPanel from '../components/raffle/PrizeDisplayPanel';
+import WelcomeScreenPanel from '../components/raffle/WelcomeScreenPanel';
+import SponsorShowPanel from '../components/raffle/SponsorShowPanel';
 import RaffleSwitcher from '../components/raffle/RaffleSwitcher';
 import LogoSizePanel from '../components/raffle/LogoSizePanel';
 import { RedrawChoice, RedrawCount, validRedrawCount } from '../components/raffle/RedrawOptions';
@@ -44,6 +53,9 @@ const SETUPS = {
     },
 };
 
+// The Control Center's tabs: the live draw, then the setting-up jobs.
+const TAB_KEYS = ['draw', 'people', 'all', 'predrawn', 'screen', 'look'];
+
 const PHASE_LABELS = {
     idle: 'Waiting to start',
     ready: 'Ready to draw',
@@ -60,13 +72,31 @@ export default function ControlCenter() {
     const setupKey = searchParams.get('setup') === 'one' ? 'one' : 'three';
     const setup = SETUPS[setupKey];
     const SCREENS = setup.screens;
-    const chooseSetup = (key) => setSearchParams(key === 'one' ? { setup: 'one' } : {}, { replace: true });
+    // The setup and the open tab both live in the address, so a reload keeps them.
+    const setParam = useCallback((name, value) => setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        if (value) next.set(name, value); else next.delete(name);
+        return next;
+    }, { replace: true }), [setSearchParams]);
+    const chooseSetup = (key) => setParam('setup', key === 'one' ? 'one' : null);
+
+    // ?tab=people|all|predrawn|screen|look opens on that tab; the live draw is the default.
+    const tab = TAB_KEYS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'draw';
+    // A tab is built the first time it is opened, then kept, so an unsaved
+    // prize list survives a trip to another tab.
+    const [visited, setVisited] = useState(() => ({ [tab]: true }));
+    const chooseTab = useCallback((key) => {
+        setVisited((current) => (current[key] ? current : { ...current, [key]: true }));
+        setParam('tab', key === 'draw' ? null : key);
+    }, [setParam]);
 
     const [raffle, setRaffle] = useState(null);
     const [loadError, setLoadError] = useState(null);
     // The main screen's last report, and when each screen was last heard from.
     const [main, setMain] = useState(null);
     const [seen, setSeen] = useState({});
+    // A main screen of the other setup that answered: { layout, at }.
+    const [otherMain, setOtherMain] = useState(null);
     // Blocks double clicks while a command is on its way.
     const [sending, setSending] = useState(false);
     // "One drumroll, all revealed": the next DRAW reveals every remaining
@@ -127,6 +157,8 @@ export default function ControlCenter() {
             if (message?.type === 'state' && message.screen === 'main' && !otherSetup) {
                 setMain(message);
                 setSeen((current) => ({ ...current, main: Date.now() }));
+            } else if (message?.type === 'state' && message.screen === 'main' && otherSetup) {
+                setOtherMain({ layout: message.layout, at: Date.now() });
             } else if (message?.type === 'presence') {
                 setSeen((current) => ({ ...current, [message.screen]: Date.now() }));
             }
@@ -157,6 +189,7 @@ export default function ControlCenter() {
     // new number of winners if wanted. The main screen is told to start over
     // at once instead of noticing on its next check.
     const toast = useToast();
+    const navigate = useNavigate();
     const [redrawOpen, setRedrawOpen] = useState(false);
     const [redrawChoice, setRedrawChoice] = useState(null);
     const [redrawCount, setRedrawCount] = useState('');
@@ -197,9 +230,38 @@ export default function ControlCenter() {
     const connected = (screen) => now - (seen[screen] ?? 0) < PRESENCE_TIMEOUT_MS;
     const mainConnected = connected('main');
 
+    // The Logos tab works on whatever raffle the main screen is showing — a
+    // pre-draw while it plays — or on this one when no main screen is open.
+    const wallRaffleId = useWallRaffle();
+    const logoRaffleId = wallRaffleId ?? String(raffleId);
+    const logoIsThis = logoRaffleId === String(raffleId);
+    const [wallRaffle, setWallRaffle] = useState(null);
+    const loadWallRaffle = useCallback(() => {
+        if (logoIsThis) return Promise.resolve();
+        return api.get(`/raffles/${logoRaffleId}/display`)
+            .then(({ data }) => setWallRaffle(data.data))
+            .catch(() => setWallRaffle(null));
+    }, [logoRaffleId, logoIsThis]);
+    useEffect(() => {
+        setWallRaffle(null);
+        if (tab === 'look') loadWallRaffle();
+    }, [loadWallRaffle, tab]);
+
+    // Only a main screen of the other setup is open (the single screen while
+    // this is set for three, or the other way round): follow it, so the draw
+    // buttons reach the screen that is actually on the wall.
+    const otherMainOnly = !mainConnected && Boolean(otherMain) && now - otherMain.at < PRESENCE_TIMEOUT_MS;
+    useEffect(() => {
+        if (!otherMainOnly) return;
+        setOtherMain(null);
+        setParam('setup', otherMain.layout === 'single' ? 'one' : null);
+    }, [otherMainOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const send = useCallback((action) => {
+        // Each DRAW carries one id: every main screen that hears it asks the
+        // server with that id, so they all show the same winner, drawn once.
         channelRef.current?.post(action === 'draw'
-            ? { type: 'command', action, together: togetherRef.current }
+            ? { type: 'command', action, together: togetherRef.current, id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}` }
             : { type: 'command', action });
         setSending(true);
         setTimeout(() => setSending(false), 900);
@@ -212,15 +274,26 @@ export default function ControlCenter() {
     };
 
     const status = raffle?.status;
-    const needsReady = status === 'DRAFT' || status === 'CANCELLED';
-    const action = needsReady && main?.phase !== 'reveal' && !(main?.allDrawn)
-        ? { label: 'Mark the raffle ready first', icon: CheckCircle2, hint: 'Use Mark as ready above.' }
-        : primaryAction(main, mainConnected, together);
+    // A new raffle has no prize or number of winners until they are set here.
+    // A pre-draw is set up in its own list: its winners and their prizes.
+    const needsSetup = Boolean(raffle) && !raffle.prize_name && !hasPrizes(raffle) && !hasStagedPrizes(raffle) && !raffle.is_predraw && !(raffle.winners?.length);
+    const predrawEmpty = Boolean(raffle?.is_predraw) && !hasStagedPrizes(raffle);
+    const needsReady = !needsSetup && (status === 'DRAFT' || status === 'CANCELLED');
+    const action = predrawEmpty
+        ? { label: 'Add the winners first', icon: CheckCircle2, hint: 'Pick this pre-draw\'s winners and prizes in the Pre-drawn tab.' }
+        : needsSetup
+        ? { label: 'Set up the raffle first', icon: CheckCircle2, hint: 'Choose the winners, the prize and who can win above.' }
+        : needsReady && main?.phase !== 'reveal' && !(main?.allDrawn)
+            ? { label: 'Mark the raffle ready first', icon: CheckCircle2, hint: 'Use Mark as ready above.' }
+            : primaryAction(main, mainConnected, together);
 
     // Space bar = the big button, so the operator can keep their eyes on the wall.
+    const tabRef = useRef(tab);
+    tabRef.current = tab;
     useEffect(() => {
         const onKey = (event) => {
-            if (event.code !== 'Space' || event.repeat || redrawOpen) return;
+            // Only on the live draw tab, so setting up never fires a draw.
+            if (event.code !== 'Space' || event.repeat || redrawOpen || tabRef.current !== 'draw') return;
             if (event.target.closest?.('button, input, textarea, select, a')) return;
             event.preventDefault();
             if (action.command && !sending) send(action.command);
@@ -257,15 +330,30 @@ export default function ControlCenter() {
 
     const total = main?.total || raffle.winners_count;
     const winners = [...(main?.winners ?? raffle.winners ?? [])].sort((a, b) => a.position - b.position);
-    const prizeValue = formatPrizeValue(raffle.prize_value, raffle.prize_currency);
+    // With a prize list: the prize being drawn, or the one just won.
+    const onStage = withPrizeOnStage(raffle, main?.phase, winners);
+    const prizeValue = formatPrizeValue(onStage.prize_value, onStage.prize_currency);
+    const prizeOf = (winner) => winner.prize_name ?? raffle.prizes?.find((prize) => prize.id === winner.prize_id)?.prize_name;
     const ActionIcon = action.icon;
     nextBatchRef.current = Boolean(mainConnected && main?.showcase && main?.finalPages?.pages > 1);
-    const remainingToDraw = Math.max(0, total - winners.length);
+    // What one "all together" draw covers: the rest of the current prize.
+    const remainingToDraw = batchRemaining({ ...raffle, winners_count: total }, winners);
     // No redraw while a winner is being drawn on the wall.
     const midDraw = mainConnected && (main?.phase === 'countdown' || main?.phase === 'drawing');
     const canChooseTogether = remainingToDraw > 1 && !needsReady
         && (!mainConnected || !main || main.phase === 'idle' || main.phase === 'ready');
     const finished = main?.phase === 'complete' || (main?.phase === 'idle' && main?.allDrawn);
+
+    // Each tab says at a glance what is going on inside it.
+    const wallShowing = mainConnected && (main?.welcome ? 'Welcome showing' : main?.sponsors ? 'Sponsors showing' : main?.prizeMode ? 'Prize display on' : null);
+    const tabs = [
+        { key: 'draw', label: 'Live draw', icon: Sparkles, badge: `${winners.length}/${total}`, alert: midDraw },
+        { key: 'people', label: 'Participants', icon: Users },
+        { key: 'all', label: 'All raffles & winners', icon: Trophy },
+        { key: 'predrawn', label: 'Pre-drawn', icon: Wand2 },
+        { key: 'screen', label: 'Main screen', icon: Monitor, badge: wallShowing, alert: Boolean(wallShowing) },
+        { key: 'look', label: 'Logos', icon: ImageIcon },
+    ];
 
     return (
         <Page raffleId={raffleId}>
@@ -275,9 +363,11 @@ export default function ControlCenter() {
                     <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gold/80">Control Center</p>
                     <h1 className="mt-1 truncate font-display text-2xl font-extrabold text-white">{raffle.name}</h1>
                     <p className="mt-1 text-sm text-muted">
-                        {raffle.prize_type === 'item'
-                            ? `${raffle.prize_name}${prizeValue ? ` · worth ${prizeValue}` : ''}`
-                            : `${prizeValue ? `${prizeValue} · ` : ''}${raffle.prize_name}`}
+                        {!onStage.prize_name
+                            ? 'Prize not set yet'
+                            : onStage.prize_type === 'item'
+                                ? `${onStage.prize_name}${prizeValue ? ` · worth ${prizeValue}` : ''}`
+                                : prizeValue ? `${prizeValue} CASH PRIZE` : onStage.prize_name}
                         {' · '}{formatNumber(raffle.eligible_count)} tickets in play
                     </p>
                 </div>
@@ -287,247 +377,346 @@ export default function ControlCenter() {
                 </div>
             </header>
 
+            {/* A pre-draw: a draw whose winners are already chosen. */}
+            {raffle.is_predraw && (
+                <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-gold/35 bg-gold/[0.07] px-4 py-3">
+                    <Wand2 size={16} className="shrink-0 text-gold" />
+                    <p className="min-w-[12rem] flex-1 text-sm text-muted">
+                        <span className="font-semibold text-white">Pre-draw.</span>{' '}
+                        Draw as usual: the screens run a real-looking draw and reveal the chosen winners in order.
+                    </p>
+                    {raffle.source_raffle_id && (
+                        <button
+                            type="button"
+                            className="btn btn-outline"
+                            disabled={midDraw}
+                            onClick={() => {
+                                switchWall(raffle.source_raffle_id);
+                                navigate(`/raffle/${raffle.source_raffle_id}/control${setupKey === 'one' ? '?setup=one' : ''}`);
+                            }}
+                        >
+                            <Undo2 size={15} />
+                            Back to the main raffle
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Any raffle, or a new one, onto the LED wall from here */}
             <div className="mt-5">
                 <RaffleSwitcher raffleId={raffleId} raffleName={raffle.name} setupKey={setupKey} onWall={mainConnected} busy={midDraw} onChanged={loadRaffle} />
             </div>
 
-            <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_22rem]">
-                <div className="space-y-5">
-                    {/* Mark as ready — only while the raffle cannot be drawn yet. */}
-                    {needsReady && (
-                        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gold/40 bg-gold/[0.07] p-5">
-                            <div className="min-w-0">
-                                <p className="font-display text-base font-bold text-white">
-                                    {status === 'DRAFT' ? 'This raffle is still a draft' : 'This raffle is cancelled'}
-                                </p>
-                                <p className="mt-0.5 text-sm text-muted">
-                                    {status === 'DRAFT'
-                                        ? 'Mark it as ready so the draw can start.'
-                                        : 'Reopen it and mark it as ready so the draw can start.'}
-                                </p>
-                                {markError && <p className="mt-2 text-sm text-red-300">{markError}</p>}
-                            </div>
-                            <button
-                                type="button"
-                                className="btn btn-gold px-6 py-3"
-                                disabled={marking}
-                                onClick={() => markReady(status === 'DRAFT' ? 'ready' : 'reopen')}
-                            >
-                                {marking ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                                Mark as ready
-                            </button>
-                        </section>
-                    )}
+            {/* Everything else is grouped into tabs, so each job has one place. */}
+            <ControlTabs tab={tab} onChange={chooseTab} items={tabs.filter(Boolean)} />
 
-                    {/* The draw */}
-                    <section className="panel panel-gold p-6">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-dim">Now</p>
-                                <p className="mt-1 font-display text-xl font-bold text-white">
-                                    {!mainConnected
-                                        ? 'Main screen not open'
-                                        : finished ? 'Raffle complete' : PHASE_LABELS[main?.phase] ?? '—'}
-                                </p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-dim">Winners</p>
-                                <p className="tabular mt-1 font-display text-xl font-bold text-gold-bright">
-                                    {winners.length} / {total}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Only before the draw starts, and only with more than one winner left. */}
-                        {canChooseTogether && (
-                            <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-black/30 px-4 py-3 transition hover:border-gold/30">
-                                <input
-                                    type="checkbox"
-                                    className="peer sr-only"
-                                    checked={together}
-                                    onChange={(event) => setTogether(event.target.checked)}
-                                />
-                                <span
-                                    className={`relative h-6 w-11 shrink-0 rounded-full border transition peer-focus-visible:ring-2 peer-focus-visible:ring-gold/50 ${
-                                        together ? 'border-gold bg-gold/80' : 'border-line bg-white/10'
-                                    }`}
-                                    aria-hidden="true"
-                                >
-                                    <span className={`absolute top-0.5 size-[18px] rounded-full bg-white shadow transition-all ${together ? 'left-[22px]' : 'left-0.5'}`} />
-                                </span>
-                                <span className="min-w-0">
-                                    <span className="block text-sm font-semibold text-white">One drumroll, all revealed</span>
-                                    <span className="block text-xs text-muted">
-                                        One countdown and one drumroll, then all {remainingToDraw} remaining winners appear together.
-                                    </span>
-                                </span>
-                            </label>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={() => send(action.command)}
-                            disabled={!action.command || sending}
-                            className="btn btn-gold mt-6 w-full justify-center py-6 text-lg tracking-[0.15em]"
-                        >
-                            {ActionIcon && <ActionIcon size={22} className={action.spin ? 'animate-spin' : ''} />}
-                            {action.label}
-                        </button>
-                        <p className="mt-2.5 text-center text-xs text-muted-dim">
-                            {action.command ? 'Or press the Space bar.' : action.hint ?? ' '}
-                        </p>
-
-                        {/* Once every winner is out: the winners-only display, how many
-                            go up at a time, and bringing up each batch. */}
-                        {mainConnected && main?.allRevealed && (
-                            <WinnersDisplayPanel main={main} post={(message) => channelRef.current?.post(message)} />
-                        )}
-
-                        {mainConnected && main?.drawError && (
-                            <p className="mt-4 flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                                {main.drawError}
-                            </p>
-                        )}
-
-                        {mainConnected && main && main.audioReady === false && !finished && (
-                            <p className="mt-4 flex items-start gap-2 rounded-lg border border-gold/30 bg-gold/[0.06] px-4 py-3 text-sm text-gold-bright">
-                                <MousePointerClick size={16} className="mt-0.5 shrink-0" />
-                                Click once anywhere on the main screen window before starting — browsers only allow sound after a click there. Its fullscreen button works.
-                            </p>
-                        )}
-                    </section>
-
-                    {/* Winners so far — ticket numbers, as revealed on the wall */}
-                    <section className="panel p-6">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                                <h2 className="font-display text-base font-bold text-white">Winners</h2>
-                                <p className="mt-0.5 text-xs text-muted">Each winner appears here the moment the main screen reveals them.</p>
-                            </div>
-                            {winners.length > 0 && (
+            {/* Live draw: the big button, the winners and the screens. */}
+            <div hidden={tab !== 'draw'}>
+                <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_22rem]">
+                    <div className="space-y-5">
+                        {/* Mark as ready — only while the raffle cannot be drawn yet. */}
+                        {needsReady && (
+                            <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gold/40 bg-gold/[0.07] p-5">
+                                <div className="min-w-0">
+                                    <p className="font-display text-base font-bold text-white">
+                                        {status === 'DRAFT' ? 'This raffle is still a draft' : 'This raffle is cancelled'}
+                                    </p>
+                                    <p className="mt-0.5 text-sm text-muted">
+                                        {status === 'DRAFT'
+                                            ? 'Mark it as ready so the draw can start.'
+                                            : 'Reopen it and mark it as ready so the draw can start.'}
+                                    </p>
+                                    {markError && <p className="mt-2 text-sm text-red-300">{markError}</p>}
+                                </div>
                                 <button
                                     type="button"
-                                    className="btn btn-outline px-3 py-1.5 text-xs"
-                                    onClick={openRedraw}
-                                    disabled={midDraw || redrawing}
-                                    title={midDraw ? 'Wait for the current draw to finish' : 'Clear the winners and draw again'}
+                                    className="btn btn-gold px-6 py-3"
+                                    disabled={marking}
+                                    onClick={() => markReady(status === 'DRAFT' ? 'ready' : 'reopen')}
                                 >
-                                    <RotateCcw size={13} />
-                                    Redraw
+                                    {marking ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                                    Mark as ready
                                 </button>
-                            )}
-                        </div>
+                            </section>
+                        )}
 
-                        <ol className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
-                            {Array.from({ length: total }, (_, index) => {
-                                const winner = winners.find((item) => item.position === index + 1);
-                                const isNewest = winner && main?.phase === 'reveal' && main?.revealed?.position === winner.position;
-                                return (
-                                    <li
-                                        key={index}
-                                        className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${
-                                            isNewest ? 'border-gold/60 bg-gold/10' : winner ? 'border-gold/20 bg-white/[0.03]' : 'border-dashed border-white/10'
+                        {/* Before the first winner: the winners, the prize and who can win. */}
+                        {winners.length === 0 && status !== 'COMPLETED' && !hasPrizes(raffle) && !raffle.is_predraw && (
+                            <RaffleSetupSection key={`current-${raffleId}`} raffle={raffle} onDone={loadRaffle} />
+                        )}
+
+                        {/* The draw */}
+                        <section className="panel panel-gold p-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-dim">Now</p>
+                                    <p className="mt-1 font-display text-xl font-bold text-white">
+                                        {!mainConnected
+                                            ? 'Main screen not open'
+                                            : main?.sponsors ? 'Sponsor show playing'
+                                            : main?.welcome ? 'Welcome screen showing'
+                                                : finished ? 'Raffle complete' : PHASE_LABELS[main?.phase] ?? '—'}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-dim">Winners</p>
+                                    <p className="tabular mt-1 font-display text-xl font-bold text-gold-bright">
+                                        {winners.length} / {total}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Only before the draw starts, and only with more than one winner left. */}
+                            {canChooseTogether && (
+                                <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-black/30 px-4 py-3 transition hover:border-gold/30">
+                                    <input
+                                        type="checkbox"
+                                        className="peer sr-only"
+                                        checked={together}
+                                        onChange={(event) => setTogether(event.target.checked)}
+                                    />
+                                    <span
+                                        className={`relative h-6 w-11 shrink-0 rounded-full border transition peer-focus-visible:ring-2 peer-focus-visible:ring-gold/50 ${
+                                            together ? 'border-gold bg-gold/80' : 'border-line bg-white/10'
                                         }`}
+                                        aria-hidden="true"
                                     >
-                                        <span className={`text-xs font-bold ${winner ? 'text-gold/80' : 'text-muted-dim'}`}>#{index + 1}</span>
-                                        <span
-                                            className={`ml-2 min-w-0 truncate font-display text-sm font-extrabold ${winner ? 'text-gold-bright' : 'text-white/15'}`}
-                                            title={winner ? `${winnerName(winner)} · ticket ${winner.ticket_number}` : undefined}
-                                        >
-                                            {winner ? winnerName(winner) : '••••'}
+                                        <span className={`absolute top-0.5 size-[18px] rounded-full bg-white shadow transition-all ${together ? 'left-[22px]' : 'left-0.5'}`} />
+                                    </span>
+                                    <span className="min-w-0">
+                                        <span className="block text-sm font-semibold text-white">One drumroll, all revealed</span>
+                                        <span className="block text-xs text-muted">
+                                            One countdown and one drumroll, then all {remainingToDraw} remaining{hasPrizes(raffle) || hasStagedPrizes(raffle) ? ` ${onStage.prize_name}` : ''} winners appear together.
                                         </span>
+                                    </span>
+                                </label>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() => send(action.command)}
+                                disabled={!action.command || sending}
+                                className="btn btn-gold mt-6 w-full justify-center py-6 text-lg tracking-[0.15em]"
+                            >
+                                {ActionIcon && <ActionIcon size={22} className={action.spin ? 'animate-spin' : ''} />}
+                                {action.label}
+                            </button>
+                            <p className="mt-2.5 text-center text-xs text-muted-dim">
+                                {action.command ? 'Or press the Space bar.' : action.hint ?? ' '}
+                            </p>
+
+                            {/* Once every winner is out: the winners-only display, how many
+                                go up at a time, and bringing up each batch. */}
+                            {mainConnected && main?.allRevealed && (
+                                <WinnersDisplayPanel main={main} post={(message) => channelRef.current?.post(message)} />
+                            )}
+
+                            {mainConnected && main?.drawError && (
+                                <p className="mt-4 flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                                    {main.drawError}
+                                </p>
+                            )}
+
+                            {mainConnected && main && main.audioReady === false && !finished && (
+                                <p className="mt-4 flex items-start gap-2 rounded-lg border border-gold/30 bg-gold/[0.06] px-4 py-3 text-sm text-gold-bright">
+                                    <MousePointerClick size={16} className="mt-0.5 shrink-0" />
+                                    Click once anywhere on the main screen window before starting — browsers only allow sound after a click there. Its fullscreen button works.
+                                </p>
+                            )}
+                        </section>
+
+                        {/* Once this raffle is done: the next one, set up right here. */}
+                        {(status === 'COMPLETED' || finished) && (
+                            <RaffleSetupSection
+                                key={`next-${raffleId}`}
+                                mode="next"
+                                raffle={raffle}
+                                onDone={(next) => {
+                                    // The open screens move to it in place, still fullscreen.
+                                    switchWall(next.id, setupKey === 'one' ? 'single' : 'display');
+                                    toast.success(`${next.name} is on the LED wall, ready to draw.`);
+                                    navigate(`/raffle/${next.id}/control${setupKey === 'one' ? '?setup=one' : ''}`);
+                                }}
+                            />
+                        )}
+
+                        {/* Winners so far — ticket numbers, as revealed on the wall */}
+                        <section className="panel p-6">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <h2 className="font-display text-base font-bold text-white">Winners</h2>
+                                    <p className="mt-0.5 text-xs text-muted">Each winner appears here the moment the main screen reveals them.</p>
+                                </div>
+                                {winners.length > 0 && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline px-3 py-1.5 text-xs"
+                                        onClick={openRedraw}
+                                        disabled={midDraw || redrawing}
+                                        title={midDraw ? 'Wait for the current draw to finish' : 'Clear the winners and draw again'}
+                                    >
+                                        <RotateCcw size={13} />
+                                        Redraw
+                                    </button>
+                                )}
+                            </div>
+
+                            <ol className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
+                                {Array.from({ length: total }, (_, index) => {
+                                    const winner = winners.find((item) => item.position === index + 1);
+                                    const isNewest = winner && main?.phase === 'reveal' && main?.revealed?.position === winner.position;
+                                    return (
+                                        <li
+                                            key={index}
+                                            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${
+                                                isNewest ? 'border-gold/60 bg-gold/10' : winner ? 'border-gold/20 bg-white/[0.03]' : 'border-dashed border-white/10'
+                                            }`}
+                                        >
+                                            <span className={`text-xs font-bold ${winner ? 'text-gold/80' : 'text-muted-dim'}`}>#{index + 1}</span>
+                                            <span
+                                                className={`ml-2 min-w-0 truncate font-display text-sm font-extrabold ${winner ? 'text-gold-bright' : 'text-white/15'}`}
+                                                title={winner ? `${winnerName(winner)} · ticket ${winner.ticket_number}${prizeOf(winner) ? ` · ${prizeOf(winner)}` : ''}` : undefined}
+                                            >
+                                                {winner ? winnerName(winner) : '••••'}
+                                            </span>
+                                        </li>
+                                    );
+                                })}
+                            </ol>
+                        </section>
+                    </div>
+
+                    {/* Screens */}
+                    <aside className="panel h-fit p-6">
+                        <h2 className="font-display text-base font-bold text-white">Setup</h2>
+                        <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-line bg-black/40 p-1" role="radiogroup" aria-label="Screen setup">
+                            {Object.entries(SETUPS).map(([key, option]) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={key === setupKey}
+                                    onClick={() => chooseSetup(key)}
+                                    className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
+                                        key === setupKey ? 'bg-gold text-black' : 'text-muted hover:text-white'
+                                    }`}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-2 text-xs text-muted">{setup.text}</p>
+
+                        {mainConnected && main?.layout && main.layout !== (setupKey === 'one' ? 'single' : 'three') && (
+                            <p className="mt-3 flex items-start gap-2 rounded-lg border border-gold/30 bg-gold/[0.06] px-3.5 py-2.5 text-xs text-gold-bright">
+                                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                                The open main window is still the {main.layout === 'single' ? 'one-screen' : 'three-screen'} version. Click Open below to switch it.
+                            </p>
+                        )}
+
+                        <h2 className="mt-6 font-display text-base font-bold text-white">Screens</h2>
+                        <p className="mt-0.5 text-xs text-muted">
+                            {SCREENS.length > 1
+                                ? 'Open each one, drag it onto its LED screen, then click its fullscreen button (top-right corner).'
+                                : 'Open it, drag it onto the LED screen, then click its fullscreen button (top-right corner).'}
+                        </p>
+
+                        <ul className="mt-4 space-y-2.5">
+                            {SCREENS.map((screen) => {
+                                const isOn = connected(screen.key);
+                                const Icon = screen.icon;
+                                return (
+                                    <li key={screen.key} className="flex items-center gap-3 rounded-lg border border-line bg-black/30 px-3.5 py-3">
+                                        <Icon size={18} className={isOn ? 'text-gold' : 'text-muted-dim'} />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-semibold text-white">{screen.label}</p>
+                                            <p className={`flex items-center gap-1.5 text-xs ${isOn ? 'text-emerald-300' : 'text-muted-dim'}`}>
+                                                <span className={`size-1.5 rounded-full ${isOn ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                                                {isOn ? 'Connected' : 'Not open'} · {screen.hint}
+                                            </p>
+                                        </div>
+                                        <button type="button" className="btn btn-outline px-3 py-1.5 text-xs" onClick={() => openScreen(screen)}>
+                                            <ExternalLink size={13} />
+                                            {isOn && !(screen.key === 'main' && main?.layout && main.layout !== (setupKey === 'one' ? 'single' : 'three')) ? 'Show' : 'Open'}
+                                        </button>
                                     </li>
                                 );
                             })}
-                        </ol>
-                    </section>
+                        </ul>
+
+                        <button
+                            type="button"
+                            className="btn btn-ghost mt-3 w-full justify-center"
+                            onClick={() => SCREENS.forEach((screen) => { if (!connected(screen.key)) openScreen(screen); })}
+                            disabled={SCREENS.every((screen) => connected(screen.key))}
+                        >
+                            {SCREENS.length > 1 ? 'Open all screens' : 'Open the screen'}
+                        </button>
+
+                        {mainConnected && main && !main.canDraw && (
+                            <p className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-300">
+                                The main screen was opened as a live view and cannot be controlled. Close it and use the Open button above.
+                            </p>
+                        )}
+                    </aside>
+                </div>
+            </div>
+
+            {/* Attendance: anyone not here is marked absent and cannot win. */}
+            {visited.people && (
+                <div hidden={tab !== 'people'} className="mt-5">
+                    <AttendancePanel raffleId={raffleId} midDraw={midDraw} onChanged={loadRaffle} />
+                </div>
+            )}
+
+            {/* Every raffle of the event with all of its winners. */}
+            {visited.all && (
+                <div hidden={tab !== 'all'} className="mt-5">
+                    <AllRafflesPanel raffleId={raffleId} setupKey={setupKey} reloadKey={winners.length} busy={midDraw} />
+                </div>
+            )}
+
+            {/* Pre-drawn: draws whose winners were chosen before the event. */}
+            {visited.predrawn && (
+                <div hidden={tab !== 'predrawn'} className="mt-5">
+                    <PredrawPanel raffleId={raffleId} setupKey={setupKey} busy={midDraw} />
+                </div>
+            )}
+
+            {/* What the main screen shows outside the draw itself. */}
+            {visited.screen && (
+                <div hidden={tab !== 'screen'} className="mt-5 space-y-5">
+                    {/* The landing page on the main screen before the draw starts */}
+                    <WelcomeScreenPanel main={main} mainConnected={mainConnected} midDraw={midDraw} post={postCommand} />
+
+                    {/* Every sponsor's logo on the main screen, tier by tier */}
+                    <SponsorShowPanel main={main} mainConnected={mainConnected} midDraw={midDraw} post={postCommand} />
 
                     {/* Turn the open main screen into the Prize Display, for a raffle drawn by hand */}
                     <PrizeDisplayPanel main={main} mainConnected={mainConnected} midDraw={midDraw} post={postCommand} />
-
-                    {/* The Congratulations screen's top-left and top-right logos */}
-                    <CornerLogoPanel raffle={raffle} raffleId={raffleId} onSaved={loadRaffle} />
-
-                    {/* Logo sizes, with a live preview of each screen */}
-                    <LogoSizePanel raffle={raffle} raffleId={raffleId} screens={SCREENS} />
                 </div>
+            )}
 
-                {/* Screens */}
-                <aside className="panel h-fit p-6">
-                    <h2 className="font-display text-base font-bold text-white">Setup</h2>
-                    <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-line bg-black/40 p-1" role="radiogroup" aria-label="Screen setup">
-                        {Object.entries(SETUPS).map(([key, option]) => (
-                            <button
-                                key={key}
-                                type="button"
-                                role="radio"
-                                aria-checked={key === setupKey}
-                                onClick={() => chooseSetup(key)}
-                                className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
-                                    key === setupKey ? 'bg-gold text-black' : 'text-muted hover:text-white'
-                                }`}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-                    <p className="mt-2 text-xs text-muted">{setup.text}</p>
+            {/* Logos on the screens and how big they are. */}
+            {visited.look && (
+                <div hidden={tab !== 'look'} className="mt-5 space-y-5">
+                    <LogoTarget raffle={logoIsThis ? raffle : wallRaffle} onWall={Boolean(wallRaffleId)} />
 
-                    {mainConnected && main?.layout && main.layout !== (setupKey === 'one' ? 'single' : 'three') && (
-                        <p className="mt-3 flex items-start gap-2 rounded-lg border border-gold/30 bg-gold/[0.06] px-3.5 py-2.5 text-xs text-gold-bright">
-                            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                            The open main window is still the {main.layout === 'single' ? 'one-screen' : 'three-screen'} version. Click Open below to switch it.
-                        </p>
+                    {(logoIsThis || wallRaffle) && (
+                        <div key={logoRaffleId} className="space-y-5">
+                            {/* The partner companies' logos on the prize screen */}
+                            <CompanyLogoPanel raffle={logoIsThis ? raffle : wallRaffle} raffleId={logoRaffleId} onSaved={logoIsThis ? loadRaffle : loadWallRaffle} />
+
+                            {/* The Congratulations screen's top-left and top-right logos */}
+                            <CornerLogoPanel raffle={logoIsThis ? raffle : wallRaffle} raffleId={logoRaffleId} onSaved={logoIsThis ? loadRaffle : loadWallRaffle} />
+
+                            {/* Logo sizes, with a live preview of each screen */}
+                            <LogoSizePanel raffle={logoIsThis ? raffle : wallRaffle} raffleId={logoRaffleId} screens={SCREENS} />
+                        </div>
                     )}
-
-                    <h2 className="mt-6 font-display text-base font-bold text-white">Screens</h2>
-                    <p className="mt-0.5 text-xs text-muted">
-                        {SCREENS.length > 1
-                            ? 'Open each one, drag it onto its LED screen, then click its fullscreen button (top-right corner).'
-                            : 'Open it, drag it onto the LED screen, then click its fullscreen button (top-right corner).'}
-                    </p>
-
-                    <ul className="mt-4 space-y-2.5">
-                        {SCREENS.map((screen) => {
-                            const isOn = connected(screen.key);
-                            const Icon = screen.icon;
-                            return (
-                                <li key={screen.key} className="flex items-center gap-3 rounded-lg border border-line bg-black/30 px-3.5 py-3">
-                                    <Icon size={18} className={isOn ? 'text-gold' : 'text-muted-dim'} />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-semibold text-white">{screen.label}</p>
-                                        <p className={`flex items-center gap-1.5 text-xs ${isOn ? 'text-emerald-300' : 'text-muted-dim'}`}>
-                                            <span className={`size-1.5 rounded-full ${isOn ? 'bg-emerald-400' : 'bg-white/20'}`} />
-                                            {isOn ? 'Connected' : 'Not open'} · {screen.hint}
-                                        </p>
-                                    </div>
-                                    <button type="button" className="btn btn-outline px-3 py-1.5 text-xs" onClick={() => openScreen(screen)}>
-                                        <ExternalLink size={13} />
-                                        {isOn && !(screen.key === 'main' && main?.layout && main.layout !== (setupKey === 'one' ? 'single' : 'three')) ? 'Show' : 'Open'}
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </ul>
-
-                    <button
-                        type="button"
-                        className="btn btn-ghost mt-3 w-full justify-center"
-                        onClick={() => SCREENS.forEach((screen) => { if (!connected(screen.key)) openScreen(screen); })}
-                        disabled={SCREENS.every((screen) => connected(screen.key))}
-                    >
-                        {SCREENS.length > 1 ? 'Open all screens' : 'Open the screen'}
-                    </button>
-
-                    {mainConnected && main && !main.canDraw && (
-                        <p className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-300">
-                            The main screen was opened as a live view and cannot be controlled. Close it and use the Open button above.
-                        </p>
-                    )}
-                </aside>
-            </div>
+                </div>
+            )}
 
             <ConfirmDialog
                 open={redrawOpen}
@@ -544,7 +733,9 @@ export default function ControlCenter() {
                 onCancel={() => setRedrawOpen(false)}
             >
                 <div className="space-y-5">
-                    <RedrawCount value={redrawCount} onChange={setRedrawCount} eligible={(raffle.eligible_count ?? 0) + winners.length} />
+                    {!hasPrizes(raffle) && (
+                        <RedrawCount value={redrawCount} onChange={setRedrawCount} eligible={(raffle.eligible_count ?? 0) + winners.length} />
+                    )}
                     <RedrawChoice value={redrawChoice} onChange={setRedrawChoice} />
                 </div>
             </ConfirmDialog>
@@ -776,6 +967,64 @@ function primaryAction(main, mainConnected, together = false) {
         default:
             return { label: '—' };
     }
+}
+
+/** Which raffle the Logos tab is adjusting: the one on the main screen. */
+function LogoTarget({ raffle, onWall }) {
+    if (!raffle) {
+        return (
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-black/30 px-4 py-3 text-sm text-muted">
+                <Loader2 size={15} className="animate-spin text-gold" />
+                Finding what is on the main screen…
+            </div>
+        );
+    }
+    return (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold/35 bg-gold/[0.07] px-4 py-3 text-sm text-muted">
+            <Monitor size={15} className="shrink-0 text-gold" />
+            Adjusting the logos of <span className="font-semibold text-white">{raffle.name}</span>
+            {raffle.is_predraw && <span className="chip border-gold/40 bg-gold/15 text-gold-bright">Pre-draw</span>}
+            <span>{onWall ? '— on the main screen now.' : '— no main screen is open, so this raffle.'}</span>
+        </div>
+    );
+}
+
+/**
+ * The tab bar. It stays at the top while scrolling, so every part of the
+ * Control Center is one click away.
+ */
+function ControlTabs({ tab, onChange, items }) {
+    return (
+        <nav className="sticky top-0 z-20 -mx-5 mt-5 border-b border-line bg-ink/95 px-5 pt-2 backdrop-blur lg:-mx-8 lg:px-8">
+            <div className="flex gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none]" role="tablist" aria-label="Control Center sections">
+                {items.map(({ key, label, icon: Icon, badge, alert }) => {
+                    const active = key === tab;
+                    return (
+                        <button
+                            key={key}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            onClick={() => onChange(key)}
+                            className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${
+                                active ? 'border-gold text-white' : 'border-transparent text-muted hover:text-white'
+                            }`}
+                        >
+                            <Icon size={16} className={active ? 'text-gold' : ''} />
+                            {label}
+                            {badge && (
+                                <span className={`tabular rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ${
+                                    alert ? 'bg-gold/20 text-gold-bright' : 'bg-white/[0.06] text-muted'
+                                }`}>
+                                    {badge}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+        </nav>
+    );
 }
 
 function Page({ raffleId, children }) {

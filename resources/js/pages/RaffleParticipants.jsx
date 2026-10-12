@@ -37,6 +37,7 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('');
     const [category, setCategory] = useState('');
+    const [developer, setDeveloper] = useState('');
     const [sort, setSort] = useState('ticket_number');
     const [direction, setDirection] = useState('asc');
     const [page, setPage] = useState(1);
@@ -74,6 +75,7 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
                     search: search || undefined,
                     status: status || undefined,
                     category: category || undefined,
+                    developer: developer || undefined,
                     sort,
                     direction,
                     per_page: 25,
@@ -88,14 +90,14 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
         } finally {
             setLoading(false);
         }
-    }, [base, page, search, status, category, sort, direction, toast]);
+    }, [base, page, search, status, category, developer, sort, direction, toast]);
 
     useEffect(() => {
         const timer = setTimeout(load, search ? 350 : 0);
         return () => clearTimeout(timer);
     }, [load, search]);
 
-    useEffect(() => { setPage(1); }, [search, status, category, sort, direction]);
+    useEffect(() => { setPage(1); }, [search, status, category, developer, sort, direction]);
 
     const refreshRaffle = () => api.get(`/raffles/${raffleId}`)
         .then(({ data }) => setRaffle(data.data))
@@ -222,11 +224,12 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
         if (search) params.set('search', search);
         if (status) params.set('status', status);
         if (category) params.set('category', category);
+        if (developer) params.set('developer', developer);
 
         window.location.assign(`/api${base}/export?${params.toString()}`);
     };
 
-    const filtered = Boolean(search || status || category);
+    const filtered = Boolean(search || status || category || developer);
     const total = meta?.total ?? 0;
 
     const actions = (
@@ -276,9 +279,16 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
                 </select>
 
                 <select className="input w-auto min-w-[10rem]" value={category} onChange={(event) => setCategory(event.target.value)}>
-                    <option value="">All categories</option>
+                    <option value="">All tags</option>
                     {filters.categories?.map((value) => <option key={value} value={value}>{value}</option>)}
                 </select>
+
+                {filters.developers?.length > 0 && (
+                    <select className="input w-auto min-w-[10rem]" value={developer} onChange={(event) => setDeveloper(event.target.value)}>
+                        <option value="">All developers</option>
+                        {filters.developers.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                )}
 
                 {participants.length > 0 && !filtered && (
                     <button
@@ -414,7 +424,7 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
                                         <div className="flex flex-wrap gap-4">
                                             {[
                                                 ['skip', 'Skip them', 'Keep the existing records untouched.'],
-                                                ['update', 'Update them', 'Overwrite name, email, phone and category from the file.'],
+                                                ['update', 'Update them', 'Overwrite name, email, phone, tag and developers from the file.'],
                                             ].map(([value, label, hint]) => (
                                                 <label key={value} className="flex cursor-pointer items-start gap-2.5 text-sm">
                                                     <input

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Gift, Play, Plus, Trophy, Users } from 'lucide-react';
+import { ArrowRight, FileText, Gift, Play, Plus, Trophy, Users } from 'lucide-react';
 import api, { parseError } from '../lib/api';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import StatCard from '../components/ui/StatCard';
@@ -31,10 +31,16 @@ export default function Dashboard() {
             title="Welcome back"
             subtitle="Everything you need to run the raffle, in one place."
             actions={
-                <Link to="/raffles/new" className="btn btn-gold">
-                    <Plus size={16} />
-                    <span className="hidden sm:inline">New Raffle</span>
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                    <Link to="/reports" className="btn btn-outline">
+                        <FileText size={16} />
+                        <span className="hidden sm:inline">Winner Reports</span>
+                    </Link>
+                    <Link to="/raffles/new" className="btn btn-gold">
+                        <Plus size={16} />
+                        <span className="hidden sm:inline">New Raffle</span>
+                    </Link>
+                </div>
             }
         >
             {loading && <LoadingState label="Loading dashboard" rows={4} />}
@@ -160,7 +166,7 @@ function RaffleRow({ raffle }) {
                     <p className="truncate font-display text-base font-bold text-white">{raffle.name}</p>
                     <StatusChip status={raffle.status} />
                 </div>
-                <p className="mt-0.5 truncate text-sm text-muted">Prize: {raffle.prize_name}</p>
+                <p className="mt-0.5 truncate text-sm text-muted">Prize: {raffle.prize_name ?? 'not set yet'}</p>
 
                 <div className="mt-3 flex items-center gap-3">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">

@@ -10,6 +10,8 @@ use App\Http\Resources\ParticipantResource;
 use App\Models\Participant;
 use App\Models\Raffle;
 use App\Services\ParticipantImportService;
+use App\Services\RaffleFileService;
+use App\Services\RaffleDrawService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +26,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ParticipantController extends Controller
 {
-    public function __construct(protected ParticipantImportService $imports) {}
+    public function __construct(protected ParticipantImportService $imports, protected RaffleFileService $files) {}
 
     public function index(Request $request, Raffle $raffle): JsonResponse
     {
@@ -36,6 +38,7 @@ class ParticipantController extends Controller
             ->search($request->string('search')->toString())
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
             ->when($request->filled('category'), fn ($q) => $q->where('category', $request->string('category')->toString()))
+            ->when($request->filled('developer'), fn ($q) => $q->whereJsonContains('developers', $request->string('developer')->toString()))
             ->orderBy($this->sortColumn($request), $request->string('direction')->toString() === 'desc' ? 'desc' : 'asc')
             ->paginate($perPage)
             ->withQueryString();
@@ -58,6 +61,13 @@ class ParticipantController extends Controller
                     ->orderBy('category')
                     ->limit(100)
                     ->pluck('category'),
+                'developers' => $raffle->participants()
+                    ->whereNotNull('developers')
+                    ->pluck('developers')
+                    ->flatten()
+                    ->unique()
+                    ->sort()
+                    ->values(),
             ],
         ]);
     }
@@ -97,6 +107,11 @@ class ParticipantController extends Controller
         $this->assertBelongsTo($raffle, $participant);
 
         $participant->update($request->validated());
+
+        // In a raffle file: absent, disqualified or back again in all of the file's raffles.
+        if ($request->filled('status')) {
+            $this->files->shareStatus($raffle, $participant->ticket_number, $participant->status->value);
+        }
 
         return response()->json(['data' => new ParticipantResource($participant->refresh())]);
     }
@@ -189,13 +204,14 @@ class ParticipantController extends Controller
             ->search($request->string('search')->toString())
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
             ->when($request->filled('category'), fn ($q) => $q->where('category', $request->string('category')->toString()))
+            ->when($request->filled('developer'), fn ($q) => $q->whereJsonContains('developers', $request->string('developer')->toString()))
             ->orderBy('ticket_number');
 
         $filename = $raffle->slug.'-participants-'.now()->format('Y-m-d-His').'.csv';
 
         return response()->streamDownload(function () use ($query) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['ticket_number', 'name', 'email', 'phone', 'category', 'status']);
+            fputcsv($handle, ['ticket_number', 'name', 'email', 'phone', 'tag', 'developers', 'status']);
 
             $query->chunkById(1000, function ($chunk) use ($handle) {
                 foreach ($chunk as $participant) {
@@ -206,6 +222,7 @@ class ParticipantController extends Controller
                         $participant->email,
                         $participant->phone,
                         $participant->category,
+                        implode(' | ', (array) $participant->developers),
                         $participant->status->value,
                     ]);
                 }
@@ -226,6 +243,52 @@ class ParticipantController extends Controller
                 ->groupBy('status')
                 ->pluck('total', 'status'),
         ]);
+    }
+
+    /**
+     * How many of this raffle's participants could win a next round drawn
+     * from the given tags or developers — leaving out anyone who already won
+     * (or sat this one out), unless `leave_out` is off. Disqualified and absent never count.
+     */
+    public function poolCount(Request $request, Raffle $raffle): JsonResponse
+    {
+        $this->authorize('viewAny', Participant::class);
+
+        $validated = $request->validate([
+            'type' => ['nullable', 'in:all,tag,developer,both'],
+            'values' => ['nullable', 'array', 'max:100'],
+            'values.*' => ['string', 'max:160'],
+            'tags' => ['nullable', 'array', 'max:100'],
+            'tags.*' => ['string', 'max:160'],
+            'developers' => ['nullable', 'array', 'max:100'],
+            'developers.*' => ['string', 'max:160'],
+            'leave_out' => ['nullable', 'boolean'],
+        ]);
+        $pool = Raffle::normalisePool([
+            'type' => $validated['type'] ?? null,
+            'values' => $validated['values'] ?? [],
+            'tags' => $validated['tags'] ?? [],
+            'developers' => $validated['developers'] ?? [],
+        ]);
+
+        $count = Raffle::applyPool($raffle->participants()->getQuery(), $pool)
+            ->whereNotIn('status', [ParticipantStatus::Disqualified->value, ParticipantStatus::Absent->value])
+            ->when($request->boolean('leave_out', true), fn ($q) => $q
+                ->whereNotIn('status', [ParticipantStatus::Winner->value, ParticipantStatus::Excluded->value])
+                ->whereNotIn('ticket_number', $raffle->winners()->select('ticket_number')))
+            // Pre-selected winners of any raffle never win another draw.
+            ->whereNotIn('ticket_number', Raffle::stagedTickets())
+            ->count();
+
+        return response()->json(['data' => ['count' => $count]]);
+    }
+
+    /** The tags and developers a raffle can be drawn from, with their ticket counts. */
+    public function groups(Raffle $raffle, RaffleDrawService $draws): JsonResponse
+    {
+        $this->authorize('viewAny', Participant::class);
+
+        return response()->json(['data' => $draws->poolOptions($raffle)]);
     }
 
     /** Guards against /raffles/1/participants/{id of another raffle's participant}. */

@@ -27,11 +27,11 @@ class DrawException extends RuntimeException
         return new self(DrawResult::InvalidStatus, $message, 409, $auditMessage);
     }
 
-    public static function noEligibleParticipants(?string $auditMessage = null): self
+    public static function noEligibleParticipants(?string $auditMessage = null, ?string $message = null): self
     {
         return new self(
             DrawResult::NoEligibleParticipants,
-            'There are no eligible ticket numbers left in this raffle pool.',
+            $message ?? 'There are no eligible ticket numbers left in this raffle pool.',
             422,
             $auditMessage,
         );

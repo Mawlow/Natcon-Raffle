@@ -51,12 +51,41 @@ class RaffleManagementTest extends TestCase
             ->assertJsonPath('data.allow_repeat_winners', false);
     }
 
-    public function test_creating_a_raffle_requires_a_name_prize_and_winner_count(): void
+    public function test_creating_a_raffle_requires_a_name(): void
     {
         $this->actingAs($this->admin())
             ->postJson('/api/raffles', ['winners_count' => 0])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['name', 'prize_name', 'winners_count']);
+            ->assertJsonValidationErrors(['name', 'winners_count'])
+            ->assertJsonMissingValidationErrors(['prize_name']);
+    }
+
+    /** The prize and the number of winners are set afterwards, in the Control Center. */
+    public function test_a_raffle_can_be_created_without_a_prize_or_winners(): void
+    {
+        $id = $this->actingAs($this->admin())
+            ->postJson('/api/raffles', ['name' => 'Raffle 2'])
+            ->assertCreated()
+            ->assertJsonPath('data.prize_name', null)
+            ->assertJsonPath('data.winners_count', 1)
+            ->json('data.id');
+
+        $raffle = \App\Models\Raffle::findOrFail($id);
+        $this->participants($raffle, 3);
+
+        $this->actingAs($this->admin())
+            ->postJson("/api/raffles/{$id}/transition", ['action' => 'ready'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Set the number of winners and the prize first.');
+
+        $this->actingAs($this->admin())
+            ->putJson("/api/raffles/{$id}", ['winners_count' => 2, 'prize_name' => 'Cash', 'prize_type' => 'cash', 'prize_value' => 1000])
+            ->assertOk();
+
+        $this->actingAs($this->admin())
+            ->postJson("/api/raffles/{$id}/transition", ['action' => 'ready'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'READY');
     }
 
     public function test_a_visitor_creates_a_raffle_as_the_administrator(): void
@@ -256,25 +285,26 @@ class RaffleManagementTest extends TestCase
             ->assertJsonValidationErrors('settings.draw_mode');
     }
 
-    public function test_a_raffle_can_be_branded_with_a_catalogue_logo(): void
+    public function test_a_raffle_can_be_branded_with_catalogue_logos(): void
     {
         $response = $this->actingAs($this->admin())
-            ->postJson('/api/raffles', $this->payload(['logo' => 'rent-ph/rentph-new-white-logo']))
+            ->postJson('/api/raffles', $this->payload(['logos' => ['rent-ph/rentph-new-white-logo', 'developers/argus']]))
             ->assertCreated()
-            ->assertJsonPath('data.logo.id', 'rent-ph/rentph-new-white-logo')
-            ->assertJsonPath('data.logo.path', '/images/logos/rent-ph/rentph-new-white-logo.png')
-            ->assertJsonPath('data.logo.tone', 'light');
+            ->assertJsonPath('data.logos.0.id', 'rent-ph/rentph-new-white-logo')
+            ->assertJsonPath('data.logos.0.path', '/images/logos/rent-ph/rentph-new-white-logo.png')
+            ->assertJsonPath('data.logos.0.tone', 'light')
+            ->assertJsonPath('data.logos.1.id', 'developers/argus');
 
         $id = $response->json('data.id');
 
         $this->getJson("/api/raffles/{$id}/display")
             ->assertOk()
-            ->assertJsonPath('data.logo.id', 'rent-ph/rentph-new-white-logo');
+            ->assertJsonPath('data.logos.0.id', 'rent-ph/rentph-new-white-logo');
 
         $this->actingAs($this->admin())
-            ->putJson("/api/raffles/{$id}", ['logo' => null])
+            ->putJson("/api/raffles/{$id}", ['logos' => []])
             ->assertOk()
-            ->assertJsonPath('data.logo', null);
+            ->assertJsonPath('data.logos', []);
     }
 
     public function test_a_raffle_can_set_corner_logos_for_the_congratulations_screen(): void
@@ -310,17 +340,19 @@ class RaffleManagementTest extends TestCase
     public function test_a_logo_outside_the_catalogue_is_rejected(): void
     {
         $this->actingAs($this->admin())
-            ->postJson('/api/raffles', $this->payload(['logo' => '../../secret.png']))
+            ->postJson('/api/raffles', $this->payload(['logos' => ['../../secret.png']]))
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('logo');
+            ->assertJsonValidationErrors('logos.0');
     }
 
-    public function test_a_raffle_without_a_logo_reports_none(): void
+    public function test_a_raffle_without_logos_reports_none(): void
     {
         $this->actingAs($this->admin())
             ->postJson('/api/raffles', $this->payload())
             ->assertCreated()
-            ->assertJsonPath('data.logo', null);
+            ->assertJsonPath('data.logos', [])
+            ->assertJsonPath('data.logo_left', null)
+            ->assertJsonPath('data.logo_right', null);
     }
 
     public function test_duplicating_a_raffle_copies_settings_but_not_winners(): void

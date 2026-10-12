@@ -11,6 +11,7 @@ import LoadingState from '../components/ui/LoadingState';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { RedrawChoice, RedrawCount, validRedrawCount } from '../components/raffle/RedrawOptions';
+import { hasPrizes } from '../lib/prizes';
 import { useToast } from '../context/ToastContext';
 import { deleteRaffleConfirmation } from '../lib/deleteRaffle';
 import { formatDateTime, formatNumber, formatPrizeValue } from '../lib/format';
@@ -207,7 +208,7 @@ export default function RaffleDetail() {
                             </div>
 
                             <p className="font-display text-2xl font-extrabold text-white">
-                                {prize ? `${prize} · ` : ''}{raffle.prize_name}
+                                {raffle.prize_name ? `${prize ? `${prize} · ` : ''}${raffle.prize_name}` : 'Prize not set yet'}
                             </p>
 
                             {raffle.description && (
@@ -342,7 +343,9 @@ export default function RaffleDetail() {
             >
                 {confirm?.kind === 'redraw' && (
                     <div className="space-y-5">
-                        <RedrawCount value={redrawCount} onChange={setRedrawCount} eligible={eligibleCount + winners.length} />
+                        {!hasPrizes(raffle) && (
+                            <RedrawCount value={redrawCount} onChange={setRedrawCount} eligible={eligibleCount + winners.length} />
+                        )}
                         <RedrawChoice value={redrawChoice} onChange={setRedrawChoice} />
                     </div>
                 )}

@@ -64,7 +64,7 @@ class PublicDisplayTest extends TestCase
         }
 
         $winner = $response->json('data.winners.0');
-        $this->assertSame(['ticket_number', 'name', 'position', 'drawn_at'], array_keys($winner));
+        $this->assertSame(['ticket_number', 'name', 'position', 'prize_id', 'prize_name', 'drawn_at'], array_keys($winner));
         $this->assertSame('Very Unique Winner Name', $winner['name']);
     }
 

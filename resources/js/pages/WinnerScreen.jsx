@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import api, { parseError } from '../lib/api';
-import { fitText, winnerName } from '../lib/format';
+import { DISPLAY_TITLE, fitText, winnerName } from '../lib/format';
 import { openDisplayChannel, useScreenPresence } from '../lib/displaySync';
 import { useLogoSizes } from '../lib/logoSizes';
 import { useWallSwitch } from '../lib/wallSwitch';
@@ -94,7 +94,7 @@ export default function WinnerScreen() {
                 const latest = all[all.length - 1];
                 const settings = fresh.settings ?? {};
                 const holdMs = (settings.roll_duration_ms ?? 6000)
-                    + (shown === 0 ? (settings.countdown_seconds ?? 3) * 1000 : 0)
+                    + (shown === 0 ? (settings.countdown_seconds ?? 5) * 1000 : 0)
                     + 800;
 
                 clearTimeout(pendingRevealRef.current);
@@ -160,7 +160,7 @@ export function WinnerHeader({ raffle }) {
         <div className="lux-ornament w-[50cqw]" aria-hidden="true">
             <Diamond />
             <span className="font-lux font-semibold uppercase tracking-[0.4em] text-gold/80" style={{ fontSize: 'min(1.8cqw, 3.4cqh)' }}>
-                {raffle.name}
+                {DISPLAY_TITLE}
             </span>
             <Diamond />
         </div>
