@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Maximize2, Minimize2, RotateCw } from 'lucide-react';
 import { refreshScreen } from '../../lib/refreshScreen';
 import HashtagMark from './HashtagMark';
+import { ScreenBackdrop } from './ScreenMargins';
 
 /**
  * The frame of a 12×7 LED sub screen. Content is laid out in a 12:7 box and
@@ -27,9 +28,9 @@ export default function LedPanel({ children, overlay = null }) {
     }, []);
 
     return (
-        <div className="fixed inset-0 grid place-items-center overflow-hidden bg-ink">
+        <div className="screen-root fixed inset-0 grid place-items-center overflow-hidden bg-ink">
             <div
-                className="relative overflow-hidden bg-ink"
+                className="screen-root relative overflow-hidden bg-ink"
                 style={{
                     aspectRatio: '12 / 7',
                     width: 'min(100vw, calc(100vh * 12 / 7))',
@@ -74,10 +75,12 @@ export default function LedPanel({ children, overlay = null }) {
 /** The panel's dimmed event artwork with a soft gold glow; the Control Center's preview uses it too. */
 export function LedBackdrop() {
     return (
-        <div className="absolute inset-0 z-0" aria-hidden="true">
-            <img src="/images/natcon-2026.webp" alt="" className="h-full w-full object-cover opacity-40 blur-[3px]" />
-            <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(5,5,5,0.75),rgba(5,5,5,0.92)_40%,rgba(5,5,5,0.97))]" />
-            <div className="absolute inset-0 bg-[radial-gradient(55%_50%_at_50%_55%,rgba(212,175,55,0.14),transparent_70%)]" />
-        </div>
+        <ScreenBackdrop>
+            <div className="absolute inset-0 z-0" aria-hidden="true">
+                <img src="/images/natcon-2026.webp" alt="" className="h-full w-full object-cover opacity-40 blur-[3px]" />
+                <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(5,5,5,0.75),rgba(5,5,5,0.92)_40%,rgba(5,5,5,0.97))]" />
+                <div className="absolute inset-0 bg-[radial-gradient(55%_50%_at_50%_55%,rgba(212,175,55,0.14),transparent_70%)]" />
+            </div>
+        </ScreenBackdrop>
     );
 }

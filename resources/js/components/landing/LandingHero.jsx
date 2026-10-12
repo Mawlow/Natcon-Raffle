@@ -9,9 +9,11 @@ import { Diamond, EVENT, EVENT_LOGO, Trophy } from './EventScene';
  * landing page's Start Raffle button); the wall has none. `bottomClass`
  * sets the room under the headline: the wall raises it. `dates` replaces
  * the convention's dates, e.g. with just the day of the show, and
- * `dateClass` their size: the wall sets them larger.
+ * `dateClass` their size: the wall sets them larger. `logoClass` sizes the
+ * logo: the landing page keeps it to the screen's height, so a laptop shows
+ * the whole hero, Start button and all.
  */
-export default function LandingHero({ children, bottomClass = 'pb-[7vh]', dates = EVENT.dates, dateClass = 'text-[0.95rem] sm:text-[1.25rem]' }) {
+export default function LandingHero({ children, bottomClass = 'pb-[7vh]', dates = EVENT.dates, dateClass = 'text-[0.95rem] sm:text-[1.25rem]', logoClass = 'w-[min(60rem,94vw)]' }) {
     return (
         // The convention logo carries the event's name, so it heads the
         // page at the top centre and there is no separate text masthead.
@@ -30,7 +32,7 @@ export default function LandingHero({ children, bottomClass = 'pb-[7vh]', dates 
                 initial={{ opacity: 0, scale: 0.94 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 1.1, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-                className="w-[min(60rem,94vw)] drop-shadow-[0_10px_40px_rgba(212,175,55,0.25)]"
+                className={`${logoClass} drop-shadow-[0_10px_40px_rgba(212,175,55,0.25)]`}
             />
 
             <div className="flex flex-col items-center">
@@ -57,14 +59,14 @@ export default function LandingHero({ children, bottomClass = 'pb-[7vh]', dates 
                     transition={{ duration: 1.3, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
                     className="mt-4 flex flex-col items-center leading-none"
                 >
-                    <span className="lux-foil pl-[0.14em] font-lux text-[clamp(3rem,10vw,7rem)] font-semibold uppercase">
+                    <span className="lux-foil pl-[0.14em] font-lux text-[clamp(3rem,min(10vw,11vh),7rem)] font-semibold uppercase">
                         Raffle
                     </span>
                     <motion.span
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 1, delay: 0.85, ease: [0.22, 1, 0.36, 1] }}
-                        className="lux-foil -mt-[0.18em] font-script text-[clamp(2.4rem,7vw,5rem)] font-semibold italic tracking-[0.02em]"
+                        className="lux-foil -mt-[0.18em] font-script text-[clamp(2.4rem,min(7vw,7.5vh),5rem)] font-semibold italic tracking-[0.02em]"
                     >
                         Draw
                     </motion.span>

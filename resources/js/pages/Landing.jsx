@@ -24,7 +24,8 @@ export default function Landing() {
             <EventBackdrop />
 
             <div className="relative z-10">
-                <LandingHero>
+                {/* Logo kept to the screen's height, so the Start button always fits. */}
+                <LandingHero logoClass="w-[min(60rem,94vw,68vh)]" bottomClass="pb-[4vh]">
                     <Link to="/dashboard" className="btn btn-gold px-7 py-3.5 text-sm">
                         <Play size={17} />
                         Start Raffle

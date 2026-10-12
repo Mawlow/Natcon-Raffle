@@ -45,7 +45,7 @@ export default function SponsorShow({ slide, logoSize = 100, children }) {
     }, []);
 
     return (
-        <div className="relative h-dvh w-full overflow-hidden bg-ink">
+        <div className="screen-root relative h-dvh w-full overflow-hidden bg-ink">
             <EventBackdrop />
 
             {/* Raised off the foot of the wall, which the audience's heads hide. */}

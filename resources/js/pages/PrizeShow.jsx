@@ -65,7 +65,7 @@ export default function PrizeShow() {
 
     return (
         // Double-click anywhere to go fullscreen, or back.
-        <div className="fixed inset-0 overflow-hidden bg-ink" style={{ containerType: 'size' }} onDoubleClick={toggleFullscreen}>
+        <div className="screen-root fixed inset-0 overflow-hidden bg-ink" style={{ containerType: 'size' }} onDoubleClick={toggleFullscreen}>
             <EventBackdrop fireworks={{ mode: 'celebration', active: celebrate }} />
             <FullscreenButton />
 

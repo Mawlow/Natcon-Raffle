@@ -647,6 +647,14 @@ function DisplayScreens({ single = false, onScreen }) {
 
         // Not over a draw in progress.
         const between = [PHASES.IDLE, PHASES.READY, PHASES.COMPLETE].includes(phase);
+        // A winner still up from the last draw is a finished draw: the wall
+        // may move on to the welcome or the sponsors, settling it first as
+        // NEXT would, so coming back shows the raffle as it stands.
+        const revealed = phase === PHASES.REVEAL;
+        const leaveReveal = () => {
+            setAutoRun(false);
+            handleNext();
+        };
 
         if (action === 'prize-mode') {
             setPrizeMode(Boolean(message.on));
@@ -655,16 +663,18 @@ function DisplayScreens({ single = false, onScreen }) {
                 setSponsors(false);
             }
         } else if (action === 'welcome') {
-            if (message.on && !between) return;
+            if (message.on && !between && !revealed) return;
             chooseWelcome(Boolean(message.on));
             if (message.on) {
+                if (revealed) leaveReveal();
                 setPrizeMode(false);
                 setSponsors(false);
             }
         } else if (action === 'sponsors') {
-            if (message.on && !between) return;
+            if (message.on && !between && !revealed) return;
             setSponsors(Boolean(message.on));
             if (message.on) {
+                if (revealed) leaveReveal();
                 // Always from the co-presenter, playing.
                 setSponsorSlide(0);
                 setSponsorPlaying(true);
@@ -744,7 +754,7 @@ function DisplayScreens({ single = false, onScreen }) {
 
     if (welcome && !loading && !loadError) {
         return (
-            <div className="relative h-dvh w-full overflow-hidden bg-ink">
+            <div className="screen-root relative h-dvh w-full overflow-hidden bg-ink">
                 <EventBackdrop />
                 <div className="relative z-10">
                     {/* Raised off the foot of the wall, which the audience's heads hide. */}
@@ -1276,7 +1286,7 @@ function saveBottomSpace(value) {
 function Shell({ children, celebrate = false, palms = true }) {
     return (
         // Exactly one screen tall: the wall never scrolls, whatever is on it.
-        <div className="relative flex h-dvh w-full flex-col items-center overflow-hidden bg-ink">
+        <div className="screen-root relative flex h-dvh w-full flex-col items-center overflow-hidden bg-ink">
             <EventBackdrop fireworks={{ mode: 'celebration', active: celebrate }} palms={palms} />
             {/* Everything readable sits in its own layer above the fixed backdrop. */}
             <div className="relative z-10 flex h-full w-full flex-col items-center justify-center">

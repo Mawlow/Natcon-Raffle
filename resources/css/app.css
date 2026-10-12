@@ -434,3 +434,8 @@
 .lite .gold-dust,
 .lite .lite-off { display: none !important; }
 .lite .sparkle-speck { animation: none !important; opacity: 0.5; }
+
+/* On an LED screen the backdrop is drawn full size beneath the content (see
+ * components/display/ScreenMargins), so the screens' own black stays out of
+ * its way. */
+.screen-margins .screen-root { background-color: transparent; }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Undo2, Wand2, ChevronLeft, ChevronRight, ExternalLink, Gift, Image as ImageIcon, Loader2, Monitor, MousePointerClick, Play, RotateCcw, SkipForward, Sparkles, Trophy, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Undo2, Wand2, ChevronLeft, ChevronRight, ExternalLink, Gift, Image as ImageIcon, Loader2, Monitor, MousePointerClick, Play, RotateCcw, RotateCw, Scan, SkipForward, Sparkles, Trophy, Users } from 'lucide-react';
 import api, { parseError } from '../lib/api';
 import { formatNumber, formatPrizeValue, winnerName } from '../lib/format';
 import { HEARTBEAT_MS, PRESENCE_TIMEOUT_MS, keepIfSame, openDisplayChannel, useNow } from '../lib/displaySync';
@@ -11,13 +11,15 @@ import PredrawPanel from '../components/raffle/PredrawPanel';
 import RaffleSetupSection from '../components/raffle/RaffleSetupSection';
 import AllRafflesPanel from '../components/raffle/AllRafflesPanel';
 import AttendancePanel from '../components/raffle/AttendancePanel';
-import { switchWall, useWallRaffle } from '../lib/wallSwitch';
+import { refreshWall, switchWall, useWallRaffle } from '../lib/wallSwitch';
+import { displayFor, displayId, displayName, showOnDisplay, useLedDisplays } from '../lib/ledDisplays';
 import { batchRemaining, hasPrizes, hasStagedPrizes, withPrizeOnStage } from '../lib/prizes';
 import PrizeDisplayPanel from '../components/raffle/PrizeDisplayPanel';
 import WelcomeScreenPanel from '../components/raffle/WelcomeScreenPanel';
 import SponsorShowPanel from '../components/raffle/SponsorShowPanel';
 import RaffleSwitcher from '../components/raffle/RaffleSwitcher';
 import LogoSizePanel from '../components/raffle/LogoSizePanel';
+import ScreenMarginsPanel from '../components/raffle/ScreenMarginsPanel';
 import { RedrawChoice, RedrawCount, validRedrawCount } from '../components/raffle/RedrawOptions';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useToast } from '../context/ToastContext';
@@ -54,7 +56,7 @@ const SETUPS = {
 };
 
 // The Control Center's tabs: the live draw, then the setting-up jobs.
-const TAB_KEYS = ['draw', 'people', 'all', 'predrawn', 'screen', 'look'];
+const TAB_KEYS = ['draw', 'people', 'all', 'predrawn', 'screen', 'look', 'margins'];
 
 const PHASE_LABELS = {
     idle: 'Waiting to start',
@@ -267,10 +269,37 @@ export default function ControlCenter() {
         setTimeout(() => setSending(false), 900);
     }, []);
 
-    const openScreen = (screen) => {
+    // The monitors on this computer, and which one each screen goes on.
+    const led = useLedDisplays();
+
+    const openScreen = async (screen) => {
+        // Chrome must be allowed to see the monitors before a window can be
+        // put on the LED wall (until then it does not even say whether there
+        // is a second one): ask now, and the next click opens it there.
+        if (led.supported && !led.displays && led.permission !== 'denied') {
+            toast.info('Click Allow in Chrome\'s prompt so it can see the LED wall, then click Open again.');
+            const found = await led.detect();
+            if (!found) toast.error('Chrome is not allowed to see the monitors. Click the icon at the left of the address bar, set Window management to Allow, and reload.');
+            else if (found.length < 2 && led.brave) toast.error('Brave is hiding your monitors. Click the lion icon in the address bar, turn Shields off for this site, reload, and try again.');
+            else if (found.length < 2) toast.warning('Chrome sees only this screen. Plug in the LED wall and set it to Extend (not Mirror) in System Settings › Displays. If it already is, quit Chrome completely (Cmd+Q) and open it again.');
+            else toast.success('LED wall found. Click Open again to put the screen on it.');
+            return;
+        }
+
         // A named window: clicking again brings the same window back rather
-        // than opening a second copy.
-        window.open(`/raffle/${raffleId}/${screen.path}`, `natcon-${screen.key}-${raffleId}`, 'popup,width=1280,height=760');
+        // than opening a second copy. It opens straight onto its LED display
+        // and goes fullscreen there (see lib/ledDisplays).
+        const display = displayFor(screen.key, led.displays, led.assignments);
+        const result = await showOnDisplay({
+            url: `/raffle/${raffleId}/${screen.path}`,
+            name: `natcon-${screen.key}-${raffleId}`,
+            display,
+        });
+        if (!result.opened) {
+            toast.error('Chrome blocked the window. Allow pop-ups for this site (icon at the right of the address bar), then try again.');
+        } else if (!result.fullscreen) {
+            toast.info(`${screen.label} is open${display ? ' on its display' : ''}. Click Show again to make it fullscreen.`);
+        }
     };
 
     const status = raffle?.status;
@@ -353,6 +382,7 @@ export default function ControlCenter() {
         { key: 'predrawn', label: 'Pre-drawn', icon: Wand2 },
         { key: 'screen', label: 'Main screen', icon: Monitor, badge: wallShowing, alert: Boolean(wallShowing) },
         { key: 'look', label: 'Logos', icon: ImageIcon },
+        { key: 'margins', label: 'Screen margins', icon: Scan },
     ];
 
     return (
@@ -372,6 +402,20 @@ export default function ControlCenter() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Refreshes the LED wall's screens without touching them. */}
+                    <button
+                        type="button"
+                        className="btn btn-outline mr-2 px-3 py-1.5 text-xs"
+                        disabled={midDraw}
+                        title={midDraw ? 'Wait for the current draw to finish' : 'Reload the screens on the LED wall'}
+                        onClick={() => {
+                            refreshWall(setupKey === 'one' ? 'single' : 'display');
+                            toast.success('Refreshing the LED wall screens.');
+                        }}
+                    >
+                        <RotateCw size={14} />
+                        Refresh screens
+                    </button>
                     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-dim">Status</span>
                     <StatusChip status={status} />
                 </div>
@@ -617,10 +661,44 @@ export default function ControlCenter() {
 
                         <h2 className="mt-6 font-display text-base font-bold text-white">Screens</h2>
                         <p className="mt-0.5 text-xs text-muted">
-                            {SCREENS.length > 1
-                                ? 'Open each one, drag it onto its LED screen, then click its fullscreen button (top-right corner).'
-                                : 'Open it, drag it onto the LED screen, then click its fullscreen button (top-right corner).'}
+                            {!led.supported
+                                ? 'Open each one, drag it onto its LED screen, then click its fullscreen button (top-right corner). Use Google Chrome to put screens on the LED wall in one click.'
+                                : led.displays
+                                    ? 'Pick the display for each screen once. Show puts it on that display, fullscreen, in one click.'
+                                    : 'Let Chrome see your monitors once, and Show puts each screen on the LED wall, fullscreen, in one click.'}
                         </p>
+
+                        {led.supported && !led.displays && led.permission !== 'denied' && (
+                            <button type="button" className="btn btn-outline mt-3 w-full justify-center" onClick={led.detect}>
+                                <Monitor size={14} />
+                                Detect LED displays
+                            </button>
+                        )}
+                        {led.supported && led.permission === 'denied' && (
+                            <p className="mt-2 text-xs text-red-300">
+                                Chrome was told not to allow this. Click the icon at the left of the address bar, set Window management to Allow, then reload this page.
+                            </p>
+                        )}
+                        {led.brave && (!led.displays || led.displays.length < 2 || led.stale) && (
+                            <p className="mt-3 flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-200">
+                                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                                <span>
+                                    You are using Brave, which hides your monitors from websites. Click the lion icon at the right of the address bar and turn Shields <b>off</b> for this site, then reload. (Or use Google Chrome.)
+                                </span>
+                            </p>
+                        )}
+                        {led.stale && !led.brave && (
+                            <p className="mt-3 flex items-start gap-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-200">
+                                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                                Chrome has lost track of a monitor (it was plugged in or changed while Chrome was open). Quit Chrome completely (Cmd+Q), open it again, and come back here.
+                            </p>
+                        )}
+                        {led.displays && led.displays.length < 2 && !led.stale && (
+                            <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-200">
+                                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                                Chrome sees only one screen. Plug in the LED wall, and in System Settings › Displays set it to Extend, not Mirror. It shows up here by itself.
+                            </p>
+                        )}
 
                         <ul className="mt-4 space-y-2.5">
                             {SCREENS.map((screen) => {
@@ -636,6 +714,18 @@ export default function ControlCenter() {
                                                 {isOn ? 'Connected' : 'Not open'} · {screen.hint}
                                             </p>
                                         </div>
+                                        {led.displays && led.displays.length > 1 && (
+                                            <select
+                                                className="input w-36 shrink-0 px-2 py-1.5 text-xs"
+                                                aria-label={`Display for the ${screen.label}`}
+                                                value={displayId(displayFor(screen.key, led.displays, led.assignments) ?? led.displays[0])}
+                                                onChange={(event) => led.assign(screen.key, event.target.value)}
+                                            >
+                                                {led.displays.map((display, index) => (
+                                                    <option key={displayId(display)} value={displayId(display)}>{displayName(display, index)}</option>
+                                                ))}
+                                            </select>
+                                        )}
                                         <button type="button" className="btn btn-outline px-3 py-1.5 text-xs" onClick={() => openScreen(screen)}>
                                             <ExternalLink size={13} />
                                             {isOn && !(screen.key === 'main' && main?.layout && main.layout !== (setupKey === 'one' ? 'single' : 'three')) ? 'Show' : 'Open'}
@@ -715,6 +805,13 @@ export default function ControlCenter() {
                             <LogoSizePanel raffle={logoIsThis ? raffle : wallRaffle} raffleId={logoRaffleId} screens={SCREENS} />
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* How far each screen's picture stays in from the wall's edges. */}
+            {visited.margins && (
+                <div hidden={tab !== 'margins'} className="mt-5">
+                    <ScreenMarginsPanel single={setupKey === 'one'} />
                 </div>
             )}
 

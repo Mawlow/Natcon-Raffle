@@ -21,6 +21,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import NotFound from './pages/NotFound';
 import { useRefreshKey } from './lib/refreshScreen';
+import ScreenMargins from './components/display/ScreenMargins';
 
 // The projector display and the landing page are loaded eagerly — they are the
 // two screens people arrive on. The admin pages (and their charting library)
@@ -74,14 +75,14 @@ function App() {
                 <ToastProvider>
                     <Routes>
                         {/* Public projector display — ticket numbers only. */}
-                        <Route path="/raffle/:raffle/display" element={<ByRaffle><PublicDisplay /></ByRaffle>} />
+                        <Route path="/raffle/:raffle/display" element={<ScreenMargins screen="main"><ByRaffle><PublicDisplay /></ByRaffle></ScreenMargins>} />
                         {/* The two 12×7 LED sub screens beside the main display. */}
                         {/* One screen for everything: draw, logos, prize and winners. */}
-                        <Route path="/raffle/:raffle/single" element={<ByRaffle><PublicDisplay single /></ByRaffle>} />
-                        <Route path="/raffle/:raffle/winner" element={<ByRaffle><WinnerScreen /></ByRaffle>} />
-                        <Route path="/raffle/:raffle/prize" element={<ByRaffle><PrizeScreen /></ByRaffle>} />
+                        <Route path="/raffle/:raffle/single" element={<ScreenMargins screen="main"><ByRaffle><PublicDisplay single /></ByRaffle></ScreenMargins>} />
+                        <Route path="/raffle/:raffle/winner" element={<ScreenMargins screen="winner"><ByRaffle><WinnerScreen /></ByRaffle></ScreenMargins>} />
+                        <Route path="/raffle/:raffle/prize" element={<ScreenMargins screen="prize"><ByRaffle><PrizeScreen /></ByRaffle></ScreenMargins>} />
                         {/* The Prize Display for raffles drawn by hand, and its control page. */}
-                        <Route path="/prize-show" element={<PrizeShow />} />
+                        <Route path="/prize-show" element={<ScreenMargins screen="main"><PrizeShow /></ScreenMargins>} />
                         <Route path="/prize-display" element={<Page><PrizeShowControl /></Page>} />
                         {/* The operator's Control Center: drives the three screens. */}
                         <Route path="/raffle/:raffle/control" element={<Page><ByRaffle><ControlCenter /></ByRaffle></Page>} />

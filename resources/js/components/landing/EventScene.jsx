@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import Fireworks from './Fireworks';
+import { ScreenBackdrop } from '../display/ScreenMargins';
 
 /**
  * The convention's stage set, shared by the landing page and the draw
@@ -34,107 +35,109 @@ const PALM = '/images/tree.png';
  */
 export function EventBackdrop({ fireworks = { mode: 'ambient' }, palms = true }) {
     return (
-        <div className="fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-            {/* The convention artwork. It is softened on purpose — the poster
-                carries its own title and dates, and left sharp it fights the
-                headline sitting on top of it. Blurred, it reads as the event's
-                colour and texture. */}
-            <motion.img
-                src={EVENT_BANNER}
-                alt=""
-                // A fade only: zooming a full-screen picture in made weaker
-                // screens (smart TVs) stutter as every screen opened.
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 0.85 }}
-                transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1] }}
-                className="h-full w-full scale-[1.06] object-cover blur-[2px] sm:blur-0"
-            />
-            {/* Darkest through the middle band, where the headline sits. */}
-            <div
-                className="absolute inset-0"
-                style={{
-                    background: 'linear-gradient(to bottom, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.88) 28%, rgba(5,5,5,0.9) 62%, rgba(5,5,5,0.97) 88%, #050505 100%)',
-                }}
-            />
-            <div
-                className="absolute inset-0"
-                style={{ background: 'radial-gradient(60% 45% at 50% 38%, rgba(212,175,55,0.10) 0%, transparent 70%)' }}
-            />
-            {/* The logo repeats the title printed in the artwork, so the band
-                the poster's own title sits in is washed out almost to black —
-                one title on screen, not two. */}
-            <div
-                className="absolute inset-x-0 top-0 h-[52vh]"
-                style={{
-                    background: 'linear-gradient(to bottom, #050505 0%, rgba(5,5,5,0.98) 26%, rgba(5,5,5,0.88) 42%, rgba(5,5,5,0.5) 70%, transparent 100%)',
-                }}
-            />
-            {/* Fireworks burst over the city, behind the skyline. */}
-            {/* No blend mode: the canvas already adds its light, and blending
-                the whole screen every frame made the wall stutter. */}
-            <Fireworks className="absolute inset-0 h-full w-full" {...fireworks} />
+        <ScreenBackdrop>
+            <div className="fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+                {/* The convention artwork. It is softened on purpose — the poster
+                    carries its own title and dates, and left sharp it fights the
+                    headline sitting on top of it. Blurred, it reads as the event's
+                    colour and texture. */}
+                <motion.img
+                    src={EVENT_BANNER}
+                    alt=""
+                    // A fade only: zooming a full-screen picture in made weaker
+                    // screens (smart TVs) stutter as every screen opened.
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 0.85 }}
+                    transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1] }}
+                    className="h-full w-full scale-[1.06] object-cover blur-[2px] sm:blur-0"
+                />
+                {/* Darkest through the middle band, where the headline sits. */}
+                <div
+                    className="absolute inset-0"
+                    style={{
+                        background: 'linear-gradient(to bottom, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.88) 28%, rgba(5,5,5,0.9) 62%, rgba(5,5,5,0.97) 88%, #050505 100%)',
+                    }}
+                />
+                <div
+                    className="absolute inset-0"
+                    style={{ background: 'radial-gradient(60% 45% at 50% 38%, rgba(212,175,55,0.10) 0%, transparent 70%)' }}
+                />
+                {/* The logo repeats the title printed in the artwork, so the band
+                    the poster's own title sits in is washed out almost to black —
+                    one title on screen, not two. */}
+                <div
+                    className="absolute inset-x-0 top-0 h-[52vh]"
+                    style={{
+                        background: 'linear-gradient(to bottom, #050505 0%, rgba(5,5,5,0.98) 26%, rgba(5,5,5,0.88) 42%, rgba(5,5,5,0.5) 70%, transparent 100%)',
+                    }}
+                />
+                {/* Fireworks burst over the city, behind the skyline. */}
+                {/* No blend mode: the canvas already adds its light, and blending
+                    the whole screen every frame made the wall stutter. */}
+                <Fireworks className="absolute inset-0 h-full w-full" {...fireworks} />
 
-            {/* The Cebu skyline rises along the foot of the backdrop, its base
-                faded into the page so it reads as part of the scene. The
-                bridge sits behind the rightmost tower, its left span tucked
-                out of sight. Both share one wrapper so they line up at every
-                width and fade in together. */}
-            <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 0.45, y: 0 }}
-                transition={{ duration: 2, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute -bottom-[6vh] left-1/2 w-[max(100vw,48rem)] max-w-[90rem] -translate-x-1/2 pt-[16%] [mask-image:linear-gradient(to_bottom,black_75%,transparent_100%)] [filter:drop-shadow(0_0_18px_rgba(212,175,55,0.18))]"
-            >
-                {/* The top padding gives the bridge, which towers over the
-                    skyline, room inside the mask so its top isn't clipped. */}
-                <div className="relative">
-                    <img src={BRIDGE} alt="" className="absolute bottom-[12%] left-[74%] w-[32%]" />
-                    <img src={SKYLINE} alt="" className="relative block w-full" />
-                </div>
-            </motion.div>
+                {/* The Cebu skyline rises along the foot of the backdrop, its base
+                    faded into the page so it reads as part of the scene. The
+                    bridge sits behind the rightmost tower, its left span tucked
+                    out of sight. Both share one wrapper so they line up at every
+                    width and fade in together. */}
+                <motion.div
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 0.45, y: 0 }}
+                    transition={{ duration: 2, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute -bottom-[6vh] left-1/2 w-[max(100vw,48rem)] max-w-[90rem] -translate-x-1/2 pt-[16%] [mask-image:linear-gradient(to_bottom,black_75%,transparent_100%)] [filter:drop-shadow(0_0_18px_rgba(212,175,55,0.18))]"
+                >
+                    {/* The top padding gives the bridge, which towers over the
+                        skyline, room inside the mask so its top isn't clipped. */}
+                    <div className="relative">
+                        <img src={BRIDGE} alt="" className="absolute bottom-[12%] left-[74%] w-[32%]" />
+                        <img src={SKYLINE} alt="" className="relative block w-full" />
+                    </div>
+                </motion.div>
 
-            {/* Palms frame the scene at both lower corners: the right one as
-                drawn, the left one mirrored so the pair lean outward. */}
-            <AnimatePresence>
-                {palms && [
-                    <motion.img
-                        key="palm-right"
-                        src={PALM}
-                        alt=""
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 0.9, y: 0 }}
-                        exit={{ opacity: 0, y: 30, transition: { duration: 0.8 } }}
-                        transition={{ duration: 2, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                        className="absolute -bottom-[3vh] -right-[2vw] h-[min(34vh,19rem)] w-auto origin-bottom rotate-[4deg] [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)] [filter:drop-shadow(0_0_14px_rgba(212,175,55,0.18))]"
-                    />,
-                    <motion.img
-                        key="palm-left"
-                        src={PALM}
-                        alt=""
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 0.9, y: 0 }}
-                        exit={{ opacity: 0, y: 30, transition: { duration: 0.8 } }}
-                        transition={{ duration: 2, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                        className="absolute -bottom-[3vh] -left-[2vw] h-[min(34vh,19rem)] w-auto origin-bottom -scale-x-100 -rotate-[4deg] [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)] [filter:drop-shadow(0_0_14px_rgba(212,175,55,0.18))]"
-                    />,
-                ]}
-            </AnimatePresence>
+                {/* Palms frame the scene at both lower corners: the right one as
+                    drawn, the left one mirrored so the pair lean outward. */}
+                <AnimatePresence>
+                    {palms && [
+                        <motion.img
+                            key="palm-right"
+                            src={PALM}
+                            alt=""
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 0.9, y: 0 }}
+                            exit={{ opacity: 0, y: 30, transition: { duration: 0.8 } }}
+                            transition={{ duration: 2, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                            className="absolute -bottom-[3vh] -right-[2vw] h-[min(34vh,19rem)] w-auto origin-bottom rotate-[4deg] [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)] [filter:drop-shadow(0_0_14px_rgba(212,175,55,0.18))]"
+                        />,
+                        <motion.img
+                            key="palm-left"
+                            src={PALM}
+                            alt=""
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 0.9, y: 0 }}
+                            exit={{ opacity: 0, y: 30, transition: { duration: 0.8 } }}
+                            transition={{ duration: 2, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                            className="absolute -bottom-[3vh] -left-[2vw] h-[min(34vh,19rem)] w-auto origin-bottom -scale-x-100 -rotate-[4deg] [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)] [filter:drop-shadow(0_0_14px_rgba(212,175,55,0.18))]"
+                        />,
+                    ]}
+                </AnimatePresence>
 
-            {/* Stage lighting fills the top corners beside the logo: a
-                spotlight swinging from each corner, with gold dust drifting up
-                through the light. */}
-            <div className="stage-beam -left-[10vw] animate-[beam-sweep-left_14s_ease-in-out_infinite]" />
-            <div className="stage-beam -right-[10vw] animate-[beam-sweep-right_14s_ease-in-out_infinite] [animation-delay:-7s]" />
-            <GoldDust />
+                {/* Stage lighting fills the top corners beside the logo: a
+                    spotlight swinging from each corner, with gold dust drifting up
+                    through the light. */}
+                <div className="stage-beam -left-[10vw] animate-[beam-sweep-left_14s_ease-in-out_infinite]" />
+                <div className="stage-beam -right-[10vw] animate-[beam-sweep-right_14s_ease-in-out_infinite] [animation-delay:-7s]" />
+                <GoldDust />
 
-            {/* A soft pool of shadow behind the headline and the stage keeps
-                the skyline from showing through the lettering. */}
-            <div
-                className="absolute inset-0"
-                style={{ background: 'radial-gradient(38% 30% at 50% 66%, rgba(5,5,5,0.82) 0%, rgba(5,5,5,0.5) 55%, transparent 100%)' }}
-            />
-            <div className="vignette absolute inset-0" />
-        </div>
+                {/* A soft pool of shadow behind the headline and the stage keeps
+                    the skyline from showing through the lettering. */}
+                <div
+                    className="absolute inset-0"
+                    style={{ background: 'radial-gradient(38% 30% at 50% 66%, rgba(5,5,5,0.82) 0%, rgba(5,5,5,0.5) 55%, transparent 100%)' }}
+                />
+                <div className="vignette absolute inset-0" />
+            </div>
+        </ScreenBackdrop>
     );
 }
 

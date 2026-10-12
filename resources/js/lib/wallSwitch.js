@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { refreshScreen } from './refreshScreen';
 
 /**
  * Lets the Control Center put a different raffle on the LED wall without
@@ -20,6 +21,18 @@ export function switchWall(raffleId, setup = null) {
     if (typeof BroadcastChannel === 'undefined') return;
     const channel = new BroadcastChannel(CHANNEL);
     channel.postMessage({ type: 'switch-raffle', raffleId: String(raffleId), setup });
+    channel.close();
+}
+
+/**
+ * Refreshes the wall's screens from the Control Center, as each screen's own
+ * refresh button would (a fullscreen screen stays fullscreen). With a setup,
+ * only that setup's screens; without, every open screen.
+ */
+export function refreshWall(setup = null) {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(CHANNEL);
+    channel.postMessage({ type: 'refresh-screen', setup });
     channel.close();
 }
 
@@ -54,7 +67,12 @@ export function useWallSwitch(path, raffleId) {
         const channel = new BroadcastChannel(CHANNEL);
         channel.onmessage = (event) => {
             const message = event.data;
-            if (message?.type !== 'switch-raffle' || (message.setup && message.setup !== SETUP_OF[path])) return;
+            if (message?.setup && message.setup !== SETUP_OF[path]) return;
+            if (message?.type === 'refresh-screen') {
+                refreshScreen();
+                return;
+            }
+            if (message?.type !== 'switch-raffle') return;
             if (!message.raffleId || message.raffleId === String(raffleId)) return;
             navigate(`/raffle/${message.raffleId}/${path}${search}`, { replace: true });
         };
