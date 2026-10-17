@@ -58,6 +58,7 @@ class ParticipantImportService
         'phone' => ['phone', 'mobile', 'contact', 'phone_number', 'contact_number', 'mobile number', 'mobile no', 'cellphone', 'cell', 'tel', 'telephone'],
         'category' => ['tag', 'tags', 'category', 'type', 'segment', 'group'],
         'developers' => ['qualified developers (tags)', 'qualified developers', 'developers', 'developer', 'developer tags', 'qualified developer'],
+        'location' => ['location', 'city', 'area', 'region', 'province', 'branch', 'territory', 'chapter'],
         'status' => ['status'],
     ];
 
@@ -167,6 +168,7 @@ class ParticipantImportService
                 'phone' => $this->cell($row, $map['phone'] ?? null),
                 'category' => $this->cell($row, $map['category'] ?? null),
                 'developers' => $this->developers($this->cell($row, $map['developers'] ?? null)),
+                'location' => $this->location($this->cell($row, $map['location'] ?? null)),
                 'status' => $status,
                 'metadata' => $metadata === [] ? null : $metadata,
             ];
@@ -247,6 +249,7 @@ class ParticipantImportService
                         'phone' => $row['phone'],
                         'category' => $row['category'],
                         'developers' => $row['developers'] === null ? null : json_encode($row['developers']),
+                        'location' => $row['location'],
                         'status' => $row['status'],
                         'metadata' => $row['metadata'] === null ? null : json_encode($row['metadata']),
                     ];
@@ -468,7 +471,7 @@ class ParticipantImportService
         // the optional columns take part — the ticket number is never guessed
         // from a heading that does not mention a ticket, because guessing it
         // wrong would silently raffle the wrong values.
-        foreach (['name', 'email', 'phone', 'category'] as $canonical) {
+        foreach (['name', 'email', 'phone', 'category', 'location'] as $canonical) {
             if (isset($map[$canonical])) {
                 continue;
             }
@@ -537,6 +540,21 @@ class ParticipantImportService
         }
 
         return $names === [] ? null : $names;
+    }
+
+    /**
+     * A location cell, tidied: runs of spaces collapsed, so "Cebu  City" and
+     * "Cebu City" are one place, and kept to the column's width.
+     */
+    protected function location(?string $cell): ?string
+    {
+        if ($cell === null) {
+            return null;
+        }
+
+        $location = preg_replace('/\s+/', ' ', trim($cell));
+
+        return $location === '' ? null : mb_substr($location, 0, 120);
     }
 
     /** Say which characters were the problem, rather than just that there was one. */

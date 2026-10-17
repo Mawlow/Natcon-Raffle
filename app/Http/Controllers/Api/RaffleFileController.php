@@ -11,6 +11,9 @@ use App\Models\RaffleFile;
 use App\Services\RaffleFileService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -105,6 +108,73 @@ class RaffleFileController extends Controller
             'message' => 'Participants uploaded.',
             'data' => $result + ['file' => $this->summary($raffleFile->refresh()->loadCount('raffles'))],
         ], 201);
+    }
+
+    /**
+     * A day of the event in numbers: how many wins its raffles have given
+     * out, how many people are still to win that day, how many have never
+     * won in the whole event — and who its draws pick from (see dayRule).
+     */
+    public function day(RaffleFile $raffleFile, int $day): JsonResponse
+    {
+        $this->authorize('viewAny', Raffle::class);
+
+        return response()->json(['data' => $this->files->dayStats($raffleFile, $day)]);
+    }
+
+    /** Who a day's draws pick from: the people still to win that day, or everyone. */
+    public function updateDay(Request $request, RaffleFile $raffleFile, int $day): JsonResponse
+    {
+        $this->authorize('create', Raffle::class);
+
+        $validated = $request->validate(['rule' => ['required', Rule::in([RaffleFile::RULE_REMAINING, RaffleFile::RULE_EVERYONE])]]);
+
+        $raffleFile->setDayRule($day, $validated['rule']);
+
+        return response()->json([
+            'message' => $validated['rule'] === RaffleFile::RULE_EVERYONE
+                ? sprintf('Day %d draws from everyone: its winners can win again that day.', $day)
+                : sprintf('Day %d draws only from the people who have not won that day.', $day),
+            'data' => $this->files->dayStats($raffleFile->refresh(), $day),
+        ]);
+    }
+
+    /**
+     * A day's people as a spreadsheet: `list=remaining` (still to win
+     * anything) or `list=won` (won so far, with what they won).
+     */
+    public function exportDay(Request $request, RaffleFile $raffleFile, int $day): StreamedResponse
+    {
+        $this->authorize('viewAny', Raffle::class);
+
+        $list = $request->validate(['list' => ['required', Rule::in(['remaining', 'won'])]])['list'];
+        $people = $this->files->dayPeople($raffleFile, $day);
+        $rows = $people[$list];
+        $wins = $people['wins'];
+        $filename = sprintf('%s-day-%d-%s-%s.csv', Str::slug($raffleFile->name) ?: 'raffle-file', $day, $list === 'won' ? 'won-so-far' : 'still-to-win', now()->format('Y-m-d-His'));
+
+        return response()->streamDownload(function () use ($rows, $wins, $list) {
+            $handle = fopen('php://output', 'w');
+            // A BOM so spreadsheet apps read the accents.
+            fwrite($handle, "\xEF\xBB\xBF");
+            fputcsv($handle, array_merge(['Ticket number', 'Name', 'Email', 'Phone', 'Tag', 'Developers', 'Location'], $list === 'won' ? ['Wins', 'Won'] : []));
+
+            foreach ($rows as $participant) {
+                $won = $wins[$participant->ticket_number] ?? [];
+                fputcsv($handle, array_merge([
+                    // Prefixed so spreadsheet apps keep the leading zeros.
+                    "\t".$participant->ticket_number,
+                    $participant->name,
+                    $participant->email,
+                    $participant->phone,
+                    $participant->category,
+                    implode(' | ', (array) $participant->developers),
+                    $participant->location,
+                ], $list === 'won' ? [count($won), implode(' | ', $won)] : []));
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     /** Who can win, for a raffle being made in this file: its tags and developers. */

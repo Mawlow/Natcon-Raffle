@@ -45,7 +45,8 @@
     "label": "FILINVEST B",
     "path": "/images/logos/developers/filinvest-b.png",
     "tone": "dark",
-    "stage_path": "/images/logos/developers/filinvest-b.png"
+    "stage_path": "/images/logos/developers/filinvest-b.png",
+    "outline": true
   },
   {
     "id": "developers/filinvest",
@@ -53,7 +54,8 @@
     "label": "FILINVEST",
     "path": "/images/logos/developers/filinvest.png",
     "tone": "dark",
-    "stage_path": "/images/logos/developers/filinvest.png"
+    "stage_path": "/images/logos/developers/filinvest.png",
+    "outline": true
   },
   {
     "id": "developers/golden-topper-b",
@@ -198,6 +200,14 @@
     "path": "/images/logos/developers/wee-community-developers.png",
     "tone": "light",
     "stage_path": "/images/logos/developers/wee-community-developers-on-dark.png"
+  },
+  {
+    "id": "developers/taft-metro",
+    "group": "Developers",
+    "label": "TAFT PROPERTIES · METRO",
+    "path": "/images/logos/developers/taft-metro.png",
+    "tone": "light",
+    "stage_path": "/images/logos/developers/taft-metro.png"
   },
   {
     "id": "fhi-global-property/fhi-branding-set-png-copies-01",
@@ -669,7 +679,8 @@
     "label": "FILINVEST",
     "path": "/images/logos/major/filinvest.png",
     "tone": "dark",
-    "stage_path": "/images/logos/major/filinvest.png"
+    "stage_path": "/images/logos/major/filinvest.png",
+    "outline": true
   },
   {
     "id": "major/grandland",
@@ -701,7 +712,8 @@
     "label": "MYCOLLEX & EASTLAND",
     "path": "/images/logos/major/mycollex-eastland.png",
     "tone": "dark",
-    "stage_path": "/images/logos/major/mycollex-eastland.png"
+    "stage_path": "/images/logos/major/mycollex-eastland.png",
+    "outline": true
   },
   {
     "id": "major/mycollex",
@@ -709,7 +721,8 @@
     "label": "MYCOLLEX",
     "path": "/images/logos/major/mycollex.png",
     "tone": "dark",
-    "stage_path": "/images/logos/major/mycollex.png"
+    "stage_path": "/images/logos/major/mycollex.png",
+    "outline": true
   },
   {
     "id": "major/priland",
@@ -813,7 +826,8 @@
     "label": "MYVAN",
     "path": "/images/logos/minor/myvan.png",
     "tone": "dark",
-    "stage_path": "/images/logos/minor/myvan.png"
+    "stage_path": "/images/logos/minor/myvan.png",
+    "outline": true
   },
   {
     "id": "minor/nexus",
@@ -837,7 +851,8 @@
     "label": "TAFT",
     "path": "/images/logos/minor/taft.png",
     "tone": "dark",
-    "stage_path": "/images/logos/minor/taft.png"
+    "stage_path": "/images/logos/minor/taft.png",
+    "outline": true
   },
   {
     "id": "star-benefactor/a-brown",
@@ -846,6 +861,14 @@
     "path": "/images/logos/star-benefactor/a-brown.png",
     "tone": "dark",
     "stage_path": "/images/logos/star-benefactor/a-brown-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/alsons",
+    "group": "Star Benefactor",
+    "label": "ALSONS",
+    "path": "/images/logos/star-benefactor/alsons.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/alsons-on-dark.png"
   },
   {
     "id": "star-benefactor/argus-land",
@@ -872,12 +895,12 @@
     "stage_path": "/images/logos/star-benefactor/contempo-sunberry-on-dark.png"
   },
   {
-    "id": "star-benefactor/sunberry",
+    "id": "star-benefactor/dbhr-brokerage",
     "group": "Star Benefactor",
-    "label": "SUNBERRY",
-    "path": "/images/logos/star-benefactor/sunberry.png",
-    "tone": "light",
-    "stage_path": "/images/logos/star-benefactor/sunberry-on-dark.png"
+    "label": "DBHR BROKERAGE",
+    "path": "/images/logos/star-benefactor/dbhr-brokerage.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/dbhr-brokerage-on-dark.png"
   },
   {
     "id": "star-benefactor/deca-horizon",
@@ -912,6 +935,14 @@
     "stage_path": "/images/logos/star-benefactor/htland-on-dark.png"
   },
   {
+    "id": "star-benefactor/island-hills-land",
+    "group": "Star Benefactor",
+    "label": "ISLAND HILLS LAND",
+    "path": "/images/logos/star-benefactor/island-hills-land.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/island-hills-land.png"
+  },
+  {
     "id": "star-benefactor/jamaica",
     "group": "Star Benefactor",
     "label": "JAMAICA",
@@ -920,12 +951,12 @@
     "stage_path": "/images/logos/star-benefactor/jamaica-on-dark.png"
   },
   {
-    "id": "star-benefactor/klmr",
+    "id": "star-benefactor/jiprop",
     "group": "Star Benefactor",
-    "label": "KLMR",
-    "path": "/images/logos/star-benefactor/klmr.png",
+    "label": "JIPROP",
+    "path": "/images/logos/star-benefactor/jiprop.png",
     "tone": "dark",
-    "stage_path": "/images/logos/star-benefactor/klmr.png"
+    "stage_path": "/images/logos/star-benefactor/jiprop-on-dark.png"
   },
   {
     "id": "star-benefactor/kisan-lu",
@@ -936,12 +967,12 @@
     "stage_path": "/images/logos/star-benefactor/kisan-lu-on-dark.png"
   },
   {
-    "id": "star-benefactor/marrea",
+    "id": "star-benefactor/klmr",
     "group": "Star Benefactor",
-    "label": "MARREA",
-    "path": "/images/logos/star-benefactor/marrea.png",
+    "label": "KLMR",
+    "path": "/images/logos/star-benefactor/klmr.png",
     "tone": "dark",
-    "stage_path": "/images/logos/star-benefactor/marrea.png"
+    "stage_path": "/images/logos/star-benefactor/klmr.png"
   },
   {
     "id": "star-benefactor/lyrr",
@@ -952,12 +983,12 @@
     "stage_path": "/images/logos/star-benefactor/lyrr.png"
   },
   {
-    "id": "star-benefactor/naga-queenstown-lyrr",
+    "id": "star-benefactor/marrea",
     "group": "Star Benefactor",
-    "label": "NAGA QUEENSTOWN & LYRR",
-    "path": "/images/logos/star-benefactor/naga-queenstown-lyrr.png",
+    "label": "MARREA",
+    "path": "/images/logos/star-benefactor/marrea.png",
     "tone": "dark",
-    "stage_path": "/images/logos/star-benefactor/naga-queenstown-lyrr-on-dark.png"
+    "stage_path": "/images/logos/star-benefactor/marrea.png"
   },
   {
     "id": "star-benefactor/naga-queenstown",
@@ -966,6 +997,14 @@
     "path": "/images/logos/star-benefactor/naga-queenstown.png",
     "tone": "light",
     "stage_path": "/images/logos/star-benefactor/naga-queenstown-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/naga-queenstown-lyrr",
+    "group": "Star Benefactor",
+    "label": "NAGA QUEENSTOWN & LYRR",
+    "path": "/images/logos/star-benefactor/naga-queenstown-lyrr.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/naga-queenstown-lyrr-on-dark.png"
   },
   {
     "id": "star-benefactor/phirst-park",
@@ -992,12 +1031,12 @@
     "stage_path": "/images/logos/star-benefactor/prosperidad.png"
   },
   {
-    "id": "star-benefactor/rtu-land-inc",
+    "id": "star-benefactor/riavin",
     "group": "Star Benefactor",
-    "label": "RTU LAND INC.",
-    "path": "/images/logos/star-benefactor/rtu-land-inc.png",
-    "tone": "light",
-    "stage_path": "/images/logos/star-benefactor/rtu-land-inc-on-dark.png"
+    "label": "RIAVIN",
+    "path": "/images/logos/star-benefactor/riavin.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/riavin-on-dark.png"
   },
   {
     "id": "star-benefactor/rtu-land",
@@ -1008,12 +1047,12 @@
     "stage_path": "/images/logos/star-benefactor/rtu-land.png"
   },
   {
-    "id": "star-benefactor/riavin",
+    "id": "star-benefactor/rtu-land-inc",
     "group": "Star Benefactor",
-    "label": "RIAVIN",
-    "path": "/images/logos/star-benefactor/riavin.png",
-    "tone": "dark",
-    "stage_path": "/images/logos/star-benefactor/riavin-on-dark.png"
+    "label": "RTU LAND INC.",
+    "path": "/images/logos/star-benefactor/rtu-land-inc.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/rtu-land-inc-on-dark.png"
   },
   {
     "id": "star-benefactor/saekyung",
@@ -1024,12 +1063,28 @@
     "stage_path": "/images/logos/star-benefactor/saekyung.png"
   },
   {
+    "id": "star-benefactor/shang-properties",
+    "group": "Star Benefactor",
+    "label": "SHANG PROPERTIES",
+    "path": "/images/logos/star-benefactor/shang-properties.png",
+    "tone": "dark",
+    "stage_path": "/images/logos/star-benefactor/shang-properties-on-dark.png"
+  },
+  {
     "id": "star-benefactor/spi",
     "group": "Star Benefactor",
     "label": "SHANG PROPERTIES (SPI)",
     "path": "/images/logos/star-benefactor/spi.png",
     "tone": "dark",
     "stage_path": "/images/logos/star-benefactor/spi-on-dark.png"
+  },
+  {
+    "id": "star-benefactor/sunberry",
+    "group": "Star Benefactor",
+    "label": "SUNBERRY",
+    "path": "/images/logos/star-benefactor/sunberry.png",
+    "tone": "light",
+    "stage_path": "/images/logos/star-benefactor/sunberry-on-dark.png"
   },
   {
     "id": "star-benefactor/suntrust",

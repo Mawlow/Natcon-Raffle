@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\RaffleStatus;
 use App\Http\Controllers\Controller;
+use App\Exceptions\DrawException;
 use App\Models\Raffle;
+use App\Services\RaffleDrawService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -30,7 +32,49 @@ class StagedWinnerController extends Controller
             'data' => $raffle->stagedWinnerList(),
             // Who already won elsewhere (ticket => where), so they cannot be picked.
             'won_elsewhere' => (object) $raffle->ticketsWonElsewhere(),
+            // How many have not won anything yet: they are picked first. Null
+            // when the day puts everyone back in.
+            'still_to_win' => $raffle->stillToWinCount(),
         ]);
+    }
+
+    /**
+     * Fills an open place on the list at random — a listed winner was taken
+     * off — from one developer's people, or the raffle's own pool.
+     */
+    public function fill(Request $request, Raffle $raffle, RaffleDrawService $draws): JsonResponse
+    {
+        $this->authorize('update', $raffle);
+
+        $validated = $request->validate([
+            'developer' => ['nullable', 'string', 'max:160'],
+            'prize_name' => ['required', 'string', 'max:160'],
+            // The ticket just taken off: not picked again for its own place.
+            'exclude_ticket' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        if ($raffle->isLocked()) {
+            return $this->lockedResponse($raffle, 'its pre-selected winners cannot be changed');
+        }
+
+        $lock = Cache::lock("raffle-draw:{$raffle->id}", 15);
+
+        if (! $lock->get()) {
+            return response()->json(['message' => 'A draw is in progress. Try again in a moment.'], 409);
+        }
+
+        try {
+            $picked = $draws->fillStagedPlace($raffle, $validated['developer'] ?: null, trim($validated['prize_name']), $request->user(), $request->ip(), $validated['exclude_ticket'] ?? null);
+
+            return response()->json([
+                'message' => sprintf('%s (ticket %s) is winner #%d. Press DRAW to reveal them on the wall.', $picked['name'] ?: 'A participant', $picked['ticket_number'], $picked['position']),
+                'data' => $picked,
+            ]);
+        } catch (DrawException $e) {
+            return response()->json(['message' => $e->getMessage(), 'code' => $e->result->value], $e->status);
+        } finally {
+            $lock->release();
+        }
     }
 
     public function update(Request $request, Raffle $raffle): JsonResponse
@@ -51,7 +95,13 @@ class StagedWinnerController extends Controller
             'prize_name' => trim($row['prize_name']),
         ], $validated['winners']);
 
-        if ($rows !== [] && $raffle->prizes()->exists()) {
+        if ($raffle->isLocked()) {
+            return $this->lockedResponse($raffle, 'its pre-selected winners cannot be changed');
+        }
+
+        // A pre-draw kept from a drawn raffle still has that raffle's prize
+        // list, for the record; its winners carry their prizes as text.
+        if ($rows !== [] && ! $raffle->is_predraw && $raffle->prizes()->exists()) {
             return response()->json(['message' => 'This raffle has a prize list. Remove it first to use pre-selected winners.'], 422);
         }
 
@@ -136,8 +186,8 @@ class StagedWinnerController extends Controller
                 // Picked is won: they show as winners in every participant
                 // list straight away. Anyone taken off is back in play.
                 $after = $locked->stagedTicketNumbers();
-                Raffle::markTicketsWon($after);
-                Raffle::releaseTickets(array_values(array_diff($before, $after)));
+                $locked->markTicketsWon($after);
+                $locked->releaseTickets(array_values(array_diff($before, $after)));
 
                 return response()->json([
                     'message' => 'Pre-selected winners saved.',

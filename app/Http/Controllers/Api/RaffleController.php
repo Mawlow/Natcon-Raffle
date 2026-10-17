@@ -128,6 +128,11 @@ class RaffleController extends Controller
             unset($data['winners_count']);
         }
 
+        // Locked: the name, logos and settings can change; the winners cannot.
+        if ($raffle->isLocked()) {
+            unset($data['winners_count'], $data['status'], $data['allow_repeat_winners'], $data['draw_filter']);
+        }
+
         if (isset($data['winners_count']) && $data['winners_count'] < $raffle->winners()->count()) {
             return response()->json([
                 'message' => 'This raffle already has more winners drawn than that. To draw fewer winners, use Redraw — it clears the winners and lets you set the new number.',
@@ -137,6 +142,8 @@ class RaffleController extends Controller
         if ($raffle->status === RaffleStatus::Completed && isset($data['status']) && $data['status'] === RaffleStatus::Live->value) {
             return response()->json(['message' => 'A completed raffle cannot be set back to live.'], 422);
         }
+
+        $keepOutChanged = array_key_exists('winners_out_for_event', $data) && (bool) $data['winners_out_for_event'] !== (bool) $raffle->winners_out_for_event;
 
         DB::transaction(function () use ($raffle, $data, $request) {
             $raffle->update($data);
@@ -149,12 +156,22 @@ class RaffleController extends Controller
             }
         });
 
+        // Its winners now sit out the whole event (or no longer do): the
+        // file's other lists show them accordingly.
+        if ($keepOutChanged && $raffle->raffleFile) {
+            app(RaffleFileService::class)->resyncWinnerMarks($raffle->raffleFile);
+        }
+
         return response()->json(['data' => new RaffleResource($this->loadRaffle($raffle->refresh()))]);
     }
 
     public function destroy(Raffle $raffle): JsonResponse
     {
         $this->authorize('delete', $raffle);
+
+        if ($raffle->isLocked()) {
+            return $this->lockedResponse($raffle, 'it cannot be deleted');
+        }
 
         DB::transaction(function () use ($raffle) {
             // Its pre-draws go with it: they were made from its participants,
@@ -171,7 +188,7 @@ class RaffleController extends Controller
 
             // Their pre-selected winners won nothing after all: back in play
             // wherever they were shown as a winner only because of them.
-            Raffle::releaseTickets(array_values(array_unique($tickets)));
+            $raffle->releaseTickets(array_values(array_unique($tickets)));
         });
 
         return response()->json(['message' => 'Raffle deleted.']);
@@ -258,10 +275,10 @@ class RaffleController extends Controller
             $now = now()->toDateTimeString();
 
             DB::table('participants')->insertUsing(
-                ['raffle_id', 'ticket_number', 'name', 'email', 'phone', 'category', 'developers', 'metadata', 'status', 'created_at', 'updated_at'],
+                ['raffle_id', 'ticket_number', 'name', 'email', 'phone', 'category', 'developers', 'location', 'metadata', 'status', 'created_at', 'updated_at'],
                 DB::table('participants')
                     ->where('raffle_id', $raffle->id)
-                    ->selectRaw("?, ticket_number, name, email, phone, category, developers, metadata, {$status}, ?, ?", [$round->id, $now, $now]),
+                    ->selectRaw("?, ticket_number, name, email, phone, category, developers, location, metadata, {$status}, ?, ?", [$round->id, $now, $now]),
             );
 
             if ($round->participants()->exists()) {
@@ -353,8 +370,10 @@ class RaffleController extends Controller
 
     /**
      * Put the chosen raffles in a set — 1 for the First Set, 2 for the
-     * Second, … — or take them out of their set (null). Sets only order the
-     * raffles for drawing; nothing about the draw itself changes.
+     * Second, … — or take them out of their set (null); and, or instead, on
+     * a day of the event — 1 for Day 1, … — or off their day (null). Only
+     * what is sent changes. Days and sets only order the raffles for
+     * drawing; nothing about the draw itself changes.
      */
     public function assignSet(Request $request): JsonResponse
     {
@@ -363,12 +382,28 @@ class RaffleController extends Controller
         $validated = $request->validate([
             'raffle_ids' => ['required', 'array', 'min:1', 'max:200'],
             'raffle_ids.*' => ['integer', 'distinct', 'exists:raffles,id'],
-            'draw_set' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'draw_set' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
+            'draw_day' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:30'],
         ]);
 
-        $updated = Raffle::query()->whereIn('id', $validated['raffle_ids'])->update(['draw_set' => $validated['draw_set'] ?? null]);
+        $changes = array_intersect_key($validated, array_flip(['draw_set', 'draw_day']));
 
-        return response()->json(['message' => 'Sets saved.', 'data' => ['updated' => $updated]]);
+        if ($changes === []) {
+            return response()->json(['message' => 'Choose a set or a day.'], 422);
+        }
+
+        $updated = Raffle::query()->whereIn('id', $validated['raffle_ids'])->update($changes);
+
+        // A new day is a fresh start: the winner marks follow the raffles.
+        if (array_key_exists('draw_day', $changes)) {
+            $files = Raffle::query()->whereIn('id', $validated['raffle_ids'])->whereNotNull('raffle_file_id')->with('raffleFile')->get()->pluck('raffleFile')->unique('id');
+
+            foreach ($files as $file) {
+                app(RaffleFileService::class)->resyncWinnerMarks($file);
+            }
+        }
+
+        return response()->json(['message' => isset($changes['draw_day']) ? 'Days saved.' : 'Sets saved.', 'data' => ['updated' => $updated]]);
     }
 
     /**
@@ -389,6 +424,10 @@ class RaffleController extends Controller
             return response()->json(['message' => $toPredraw ? 'This is already a pre-draw.' : 'This is already an ordinary raffle.'], 422);
         }
 
+        if ($raffle->isLocked()) {
+            return $this->lockedResponse($raffle, 'it cannot be changed into an ordinary raffle');
+        }
+
         if ($raffle->winners()->exists()) {
             return response()->json([
                 'message' => 'This raffle already has winners. Clear them first (Clear winners & redraw), then change it.',
@@ -401,10 +440,9 @@ class RaffleController extends Controller
 
             if ($toPredraw) {
                 $locked->prizes()->delete();
+                // It keeps its set: pre-draws are played in set order too.
                 $locked->forceFill([
                     'is_predraw' => true,
-                    // Pre-draws are listed on their own, not in the sets.
-                    'draw_set' => null,
                     'winners_count' => 1,
                     'status' => $hasParticipants ? RaffleStatus::Ready : RaffleStatus::Draft,
                     'completed_at' => null,
@@ -425,7 +463,7 @@ class RaffleController extends Controller
                 'completed_at' => null,
             ])->save();
 
-            Raffle::releaseTickets($tickets);
+            $locked->releaseTickets($tickets);
         });
 
         return response()->json([
@@ -454,6 +492,10 @@ class RaffleController extends Controller
 
         if ($raffle->status === RaffleStatus::Completed && $validated['action'] === 'start') {
             return response()->json(['message' => 'This raffle is already completed.'], 409);
+        }
+
+        if ($raffle->isLocked() && $validated['action'] === 'cancel') {
+            return $this->lockedResponse($raffle, 'it cannot be cancelled');
         }
 
         if (in_array($validated['action'], ['ready', 'start'], true) && blank($raffle->prize_name) && $raffle->prizes()->doesntExist()) {

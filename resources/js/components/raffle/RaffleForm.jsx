@@ -26,6 +26,7 @@ const BLANK = {
     winners_count: 1,
     participant_pool: '',
     allow_repeat_winners: false,
+    winners_out_for_event: false,
     starts_at: '',
     ends_at: '',
     settings: {
@@ -82,14 +83,14 @@ export default function RaffleForm({ raffle, raffleFile = null, errors = {}, sub
     const inFile = Boolean(raffleFile) && !raffle;
     const [prizes, setPrizes] = useState(() => [blankPrize()]);
     const [groups, setGroups] = useState(null);
-    // The tags and developers to choose who can win from: the file's list for
+    // The tags, developers and locations to choose who can win from: the file's list for
     // a raffle being made in a file, the raffle's own list once it exists.
     const groupsUrl = inFile ? `/raffle-files/${raffleFile.id}/groups` : raffle?.id ? `/raffles/${raffle.id}/participants/groups` : null;
     useEffect(() => {
         if (!groupsUrl) return;
         api.get(groupsUrl)
             .then(({ data }) => setGroups(data.data))
-            .catch(() => setGroups({ tags: [], developers: [] }));
+            .catch(() => setGroups({ tags: [], developers: [], locations: [] }));
     }, [groupsUrl]);
     // A raffle with a prize list sets who can win per prize, in the Control Center.
     const hasPrizeList = Boolean(raffle?.prizes?.length);
@@ -330,6 +331,21 @@ export default function RaffleForm({ raffle, raffleFile = null, errors = {}, sub
                         <span className="block text-sm font-semibold text-white">Allow repeat winners</span>
                         <span className="mt-0.5 block text-xs leading-relaxed text-muted">
                             Off by default. When off, a ticket that has already won this raffle is removed from the pool for every later draw.
+                        </span>
+                    </span>
+                </label>
+
+                <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-black/30 p-4">
+                    <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-line bg-black/50 accent-[#d4af37]"
+                        checked={form.winners_out_for_event}
+                        onChange={(event) => set('winners_out_for_event', event.target.checked)}
+                    />
+                    <span>
+                        <span className="block text-sm font-semibold text-white">Big prize — its winners sit out the rest of the event</span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+                            Normally everyone in a raffle file wins once a day and is back in play the next day. With this on, whoever wins this raffle is left out of every other draw in the file, on every day.
                         </span>
                     </span>
                 </label>

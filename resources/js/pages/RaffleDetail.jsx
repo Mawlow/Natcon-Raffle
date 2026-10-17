@@ -11,7 +11,7 @@ import LoadingState from '../components/ui/LoadingState';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { RedrawChoice, RedrawCount, validRedrawCount } from '../components/raffle/RedrawOptions';
-import { hasPrizes } from '../lib/prizes';
+import { hasPrizes, hasStagedPrizes } from '../lib/prizes';
 import { useToast } from '../context/ToastContext';
 import { deleteRaffleConfirmation } from '../lib/deleteRaffle';
 import { formatDateTime, formatNumber, formatPrizeValue } from '../lib/format';
@@ -105,6 +105,22 @@ export default function RaffleDetail() {
             await load();
         } catch (error) {
             toast.error(parseError(error, 'The raffle could not be redrawn.').message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    // A pre-draw is played again, not re-picked: the same winners come out again.
+    const replay = async () => {
+        setBusy(true);
+        try {
+            const { data } = await api.post(`/raffles/${raffleId}/replay`);
+            setLastWinner(null);
+            const winnersCount = data.data.winners_count;
+            toast.success(`The draw reveals the same ${winnersCount} winner${winnersCount === 1 ? '' : 's'} again, in the same order.`, { title: 'Ready to play again' });
+            await load();
+        } catch (error) {
+            toast.error(parseError(error, 'The pre-draw could not be reset.').message);
         } finally {
             setBusy(false);
         }
@@ -232,6 +248,16 @@ export default function RaffleDetail() {
                     lastWinner={lastWinner}
                     onDraw={draw}
                     onRedraw={() => {
+                        if (hasStagedPrizes(raffle)) {
+                            setConfirm({
+                                title: 'Play this pre-draw again?',
+                                description: `The ${winners.length} revealed winner${winners.length === 1 ? '' : 's'} ${winners.length === 1 ? 'is' : 'are'} cleared and the pre-draw set back to READY. When it is drawn again, the same winners come out in the same order — nobody on the list changes.\n\nThe earlier reveals stay in the audit log.`,
+                                confirmLabel: 'Play again — same winners',
+                                tone: 'gold',
+                                run: replay,
+                            });
+                            return;
+                        }
                         setRedrawChoice(null);
                         setRedrawCount(String(raffle.winners_count));
                         setConfirm({

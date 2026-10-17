@@ -215,7 +215,7 @@ class ParticipantManagementTest extends TestCase
 
         $body = $response->streamedContent();
 
-        $this->assertStringContainsString('ticket_number,name,email,phone,tag,developers,status', $body);
+        $this->assertStringContainsString('ticket_number,name,email,phone,tag,developers,location,status', $body);
         // Tab-prefixed so spreadsheet software keeps the leading zeros.
         $this->assertStringContainsString('000001', $body);
     }

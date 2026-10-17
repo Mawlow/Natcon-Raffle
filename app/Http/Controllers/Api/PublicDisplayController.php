@@ -33,6 +33,7 @@ class PublicDisplayController extends Controller
         return response()->json([
             'data' => [
                 'id' => $raffle->id,
+                'raffle_file_id' => $raffle->raffle_file_id,
                 'name' => $raffle->name,
                 'slug' => $raffle->slug,
                 'description' => $raffle->description,
@@ -47,10 +48,24 @@ class PublicDisplayController extends Controller
                 'staged_prizes' => array_column($raffle->stagedWinners(), 'prize_name'),
                 // A pre-draw: the Control Center offers the way back to the raffle it came from.
                 'is_predraw' => (bool) $raffle->is_predraw,
+                // Locked: the Control Center offers no way to take a winner off.
+                'is_locked' => $raffle->isLocked(),
+                // Set for a replacement: the very next draw picks from this developer only.
+                'next_draw_pool_label' => $raffle->next_draw_pool ? \App\Models\Raffle::poolLabel(\App\Models\Raffle::normalisePool($raffle->next_draw_pool)) : null,
+                // A redraw the owner can still undo: when, and how many winners
+                // it cleared — never who. The Control Center offers the undo.
+                'undoable_redraw' => ($undo = $this->draws->undoableRedraw($raffle)) ? [
+                    'at' => $undo->created_at?->toIso8601String(),
+                    'cleared' => count($undo->context['cleared_tickets'] ?? []),
+                ] : null,
+                'draw_day' => $raffle->draw_day,
+                'draw_set' => $raffle->draw_set,
                 'source_raffle_id' => $raffle->source_raffle_id,
                 'logos' => RaffleLogos::findMany($raffle->logos),
                 'logo_left' => RaffleLogos::find($raffle->logo_left),
                 'logo_right' => RaffleLogos::find($raffle->logo_right),
+                // A photo per prize name, shown beside the prize.
+                'prize_images' => (object) Raffle::prizeImageUrls($raffle->prize_images),
                 'winners_count' => (int) $raffle->winners_count,
                 'status' => $raffle->status->value,
                 'ticket_length' => $this->ticketLength($raffle),

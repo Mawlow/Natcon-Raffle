@@ -28,6 +28,7 @@ class Participant extends Model
         'phone',
         'category',
         'developers',
+        'location',
         'status',
         'metadata',
         'import_batch_id',

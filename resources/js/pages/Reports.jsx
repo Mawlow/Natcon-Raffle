@@ -104,7 +104,7 @@ export default function Reports() {
                     </div>
 
                     {shown.length === 0 ? (
-                        <EmptyState title="Nothing to show" description={search ? 'No raffle or winner matches.' : 'No raffles yet.'} />
+                        <EmptyState title="Nothing to show" description={search ? 'No raffle or winner matches.' : 'No raffle has been played yet. A raffle appears here once its winners are drawn.'} />
                     ) : (
                         <ul className="space-y-4">
                             {shown.map((report) => (

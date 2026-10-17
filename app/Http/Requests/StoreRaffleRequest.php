@@ -21,6 +21,8 @@ class StoreRaffleRequest extends FormRequest
             'name' => ['required', 'string', 'max:160'],
             // Made inside a raffle file: it starts with the file's participants.
             'raffle_file_id' => ['nullable', 'integer', 'exists:raffle_files,id'],
+            // Made inside one of the file's days: Day 1, Day 2, …
+            'draw_day' => ['nullable', 'integer', 'min:1', 'max:30'],
             // Set up in full when it is made: its prize list, and saved ready to draw.
             ...RafflePrizeController::rules(),
             'prizes' => ['nullable', 'array', 'max:50'],
@@ -43,17 +45,22 @@ class StoreRaffleRequest extends FormRequest
             'winners_count' => ['nullable', 'integer', 'min:1', 'max:500'],
             'participant_pool' => ['nullable', 'string', 'max:160'],
             // Who can win: null (everyone), or only the participants carrying
-            // one of the chosen tags, or qualified under one of the chosen developers.
+            // one of the chosen tags, qualified under one of the chosen developers,
+            // or from one of the chosen locations.
             'draw_filter' => ['nullable', 'array'],
-            'draw_filter.type' => ['required_with:draw_filter', Rule::in(['all', 'tag', 'developer', 'both'])],
+            'draw_filter.type' => ['required_with:draw_filter', Rule::in(['all', 'tag', 'developer', 'location', 'both'])],
             'draw_filter.tags' => ['nullable', 'array', 'max:100'],
             'draw_filter.tags.*' => ['string', 'max:160', 'distinct'],
             'draw_filter.developers' => ['nullable', 'array', 'max:100'],
             'draw_filter.developers.*' => ['string', 'max:160', 'distinct'],
+            'draw_filter.locations' => ['nullable', 'array', 'max:100'],
+            'draw_filter.locations.*' => ['string', 'max:160', 'distinct'],
             'draw_filter.values' => ['nullable', 'array', 'max:100'],
             'draw_filter.values.*' => ['string', 'max:160', 'distinct'],
             'status' => ['nullable', Rule::in([RaffleStatus::Draft->value, RaffleStatus::Ready->value])],
             'allow_repeat_winners' => ['boolean'],
+            // A big prize: its winners sit out every other draw of the event, all days.
+            'winners_out_for_event' => ['boolean'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'settings' => ['nullable', 'array'],
@@ -74,6 +81,7 @@ class StoreRaffleRequest extends FormRequest
     {
         $this->merge([
             'allow_repeat_winners' => $this->boolean('allow_repeat_winners'),
+            'winners_out_for_event' => $this->boolean('winners_out_for_event'),
         ]);
     }
 

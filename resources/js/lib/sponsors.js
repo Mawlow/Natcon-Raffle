@@ -3,8 +3,10 @@
  * them: the co-presenter alone first, then the major sponsors, the minor
  * sponsors and the star benefactors.
  */
-const BASE = 'https://filipinohomes123.s3.ap-southeast-1.amazonaws.com/filipinohomes-new/natcon/sponsors';
-// An id is a sponsor logo on the server; a path ("/images/...") is a file in this app.
+// The sponsor logos are bundled with the app (public/images/sponsors), so the
+// show runs with no internet connection, same as the fonts and the backdrop.
+const BASE = '/images/sponsors';
+// An id is a sponsor logo in that folder; a path ("/images/...") is any other file in this app.
 const logos = (ids) => ids.map((id) => (id.startsWith('/') ? id : `${BASE}/${id}.webp`));
 
 export const SPONSOR_TIERS = [
@@ -90,6 +92,12 @@ export const SPONSOR_TIERS = [
             'fa6a3cd6-10a4-4711-9bf0-c04e800295bf',
             'df3d1a07-8bf1-40bf-8553-a23adacce4e4',
             'ebdd164c-4dce-458a-aab4-7c382e90a498',
+            'ddc1c976-8623-4e36-a899-405c69146cd4', // Shang Properties
+            '79975504-f796-4cda-be6f-31e1bf4b8aa0', // Suntrust
+            '50d5dd5d-82b9-4bd2-a3a5-f39fd2d93fe2', // Alsons
+            '85db5943-d221-4263-874e-8575428f80cd', // Jiprop
+            '82b3ab4c-5dbd-488e-b726-5ee8367a3e27', // DBHR Brokerage
+            '356fe151-abae-4f66-ac1c-2e235bcda12c', // Island Hills Land
         ]),
     },
 ];

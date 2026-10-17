@@ -71,6 +71,7 @@ export default function CsvPreview({ preview }) {
                                     <th className="px-5 py-2.5 font-semibold">Name</th>
                                     <th className="px-5 py-2.5 font-semibold">Email</th>
                                     <th className="px-5 py-2.5 font-semibold">Category</th>
+                                    <th className="px-5 py-2.5 font-semibold">Location</th>
                                     <th className="px-5 py-2.5 font-semibold">State</th>
                                 </tr>
                             </thead>
@@ -82,6 +83,7 @@ export default function CsvPreview({ preview }) {
                                         <td className="max-w-[12rem] truncate px-5 py-2.5 text-white">{row.name ?? '—'}</td>
                                         <td className="max-w-[14rem] truncate px-5 py-2.5 text-muted">{row.email ?? '—'}</td>
                                         <td className="px-5 py-2.5 text-muted">{row.category ?? '—'}</td>
+                                        <td className="px-5 py-2.5 text-muted">{row.location ?? '—'}</td>
                                         <td className="px-5 py-2.5">
                                             {row.already_exists ? (
                                                 <span className="chip border-sky-400/25 bg-sky-400/10 text-sky-300">Exists</span>

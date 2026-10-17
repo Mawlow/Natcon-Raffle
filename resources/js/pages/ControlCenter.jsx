@@ -1,27 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Undo2, Wand2, ChevronLeft, ChevronRight, ExternalLink, Gift, Image as ImageIcon, Loader2, Monitor, MousePointerClick, Play, RotateCcw, RotateCw, Scan, SkipForward, Sparkles, Trophy, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowLeftRight, CheckCircle2, Undo2, Wand2, ChevronLeft, ChevronRight, ExternalLink, Gift, Image as ImageIcon, Loader2, Lock, LockOpen, KeyRound, Maximize2, Monitor, MonitorPlay, MousePointerClick, Play, RotateCcw, RotateCw, Scan, SkipForward, Sparkles, Trophy, Users, X } from 'lucide-react';
 import api, { parseError } from '../lib/api';
 import { formatNumber, formatPrizeValue, winnerName } from '../lib/format';
-import { HEARTBEAT_MS, PRESENCE_TIMEOUT_MS, keepIfSame, openDisplayChannel, useNow } from '../lib/displaySync';
+import { HEARTBEAT_MS, PRESENCE_TIMEOUT_MS, keepIfEqual, keepIfSame, openDisplayChannel, useSeen } from '../lib/displaySync';
 import StatusChip from '../components/ui/StatusChip';
 import CornerLogoPanel from '../components/raffle/CornerLogoPanel';
 import CompanyLogoPanel from '../components/raffle/CompanyLogoPanel';
+import PrizePhotoPanel from '../components/raffle/PrizePhotoPanel';
 import PredrawPanel from '../components/raffle/PredrawPanel';
 import RaffleSetupSection from '../components/raffle/RaffleSetupSection';
 import AllRafflesPanel from '../components/raffle/AllRafflesPanel';
 import AttendancePanel from '../components/raffle/AttendancePanel';
+import ReservedPickDot from '../components/raffle/ReservedPickDot';
+import SwapWinnerDialog from '../components/raffle/SwapWinnerDialog';
 import { refreshWall, switchWall, useWallRaffle } from '../lib/wallSwitch';
-import { displayFor, displayId, displayName, showOnDisplay, useLedDisplays } from '../lib/ledDisplays';
+import { displayFor, displayId, displayName, fullscreenScreen, screenWindowName, showOnDisplay, useLedDisplays } from '../lib/ledDisplays';
 import { batchRemaining, hasPrizes, hasStagedPrizes, withPrizeOnStage } from '../lib/prizes';
 import PrizeDisplayPanel from '../components/raffle/PrizeDisplayPanel';
+import MainScreenWinnersPanel from '../components/raffle/MainScreenWinnersPanel';
 import WelcomeScreenPanel from '../components/raffle/WelcomeScreenPanel';
 import SponsorShowPanel from '../components/raffle/SponsorShowPanel';
 import RaffleSwitcher from '../components/raffle/RaffleSwitcher';
+import PlaylistPanel from '../components/raffle/PlaylistPanel';
+import FillPlacePanel from '../components/raffle/FillPlacePanel';
 import LogoSizePanel from '../components/raffle/LogoSizePanel';
 import ScreenMarginsPanel from '../components/raffle/ScreenMarginsPanel';
-import { RedrawChoice, RedrawCount, validRedrawCount } from '../components/raffle/RedrawOptions';
+import { RedrawChoice, RedrawCount, RedrawMode, validRedrawCount } from '../components/raffle/RedrawOptions';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import UnlockDialog, { lockWinners } from '../components/raffle/UnlockDialog';
 import { useToast } from '../context/ToastContext';
 import { DEFAULT_TRANSITION, TRANSITIONS } from '../components/display/winnerTransitions';
 
@@ -37,6 +44,13 @@ import { DEFAULT_TRANSITION, TRANSITIONS } from '../components/display/winnerTra
 // Two setups, driven the same way. The main window keeps one name in both,
 // so switching setup reuses it instead of opening a second draw.
 const SETUPS = {
+    one: {
+        label: 'One screen',
+        text: 'A single screen shows everything: logos, title, prize, the draw and the winners.',
+        screens: [
+            { key: 'main', label: 'Single screen', path: 'single', icon: Monitor, hint: 'Draw, prize and winners' },
+        ],
+    },
     three: {
         label: 'Three screens',
         text: 'Main screen for the draw, plus the 12×7 winner and prize screens.',
@@ -46,17 +60,10 @@ const SETUPS = {
             { key: 'prize', label: 'Prize screen', path: 'prize', icon: Gift, hint: '12×7 sub screen' },
         ],
     },
-    one: {
-        label: 'One screen',
-        text: 'A single screen shows everything: logos, title, prize, the draw and the winners.',
-        screens: [
-            { key: 'main', label: 'Single screen', path: 'single', icon: Monitor, hint: 'Draw, prize and winners' },
-        ],
-    },
 };
 
 // The Control Center's tabs: the live draw, then the setting-up jobs.
-const TAB_KEYS = ['draw', 'people', 'all', 'predrawn', 'screen', 'look', 'margins'];
+const TAB_KEYS = ['draw', 'people', 'all', 'predrawn', 'screen', 'prize', 'look', 'margins'];
 
 const PHASE_LABELS = {
     idle: 'Waiting to start',
@@ -69,9 +76,9 @@ const PHASE_LABELS = {
 
 export default function ControlCenter() {
     const { raffle: raffleId } = useParams();
-    // ?setup=one opens straight into the one-screen setup.
+    // One screen is the setup used; ?setup=three opens the three-screen wall.
     const [searchParams, setSearchParams] = useSearchParams();
-    const setupKey = searchParams.get('setup') === 'one' ? 'one' : 'three';
+    const setupKey = searchParams.get('setup') === 'three' ? 'three' : 'one';
     const setup = SETUPS[setupKey];
     const SCREENS = setup.screens;
     // The setup and the open tab both live in the address, so a reload keeps them.
@@ -80,7 +87,7 @@ export default function ControlCenter() {
         if (value) next.set(name, value); else next.delete(name);
         return next;
     }, { replace: true }), [setSearchParams]);
-    const chooseSetup = (key) => setParam('setup', key === 'one' ? 'one' : null);
+    const chooseSetup = (key) => setParam('setup', key === 'three' ? 'three' : null);
 
     // ?tab=people|all|predrawn|screen|look opens on that tab; the live draw is the default.
     const tab = TAB_KEYS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'draw';
@@ -94,11 +101,13 @@ export default function ControlCenter() {
 
     const [raffle, setRaffle] = useState(null);
     const [loadError, setLoadError] = useState(null);
-    // The main screen's last report, and when each screen was last heard from.
+    // The main screen's last report, and which screens are connected.
     const [main, setMain] = useState(null);
-    const [seen, setSeen] = useState({});
-    // A main screen of the other setup that answered: { layout, at }.
-    const [otherMain, setOtherMain] = useState(null);
+    const [seen, heard, forget] = useSeen(PRESENCE_TIMEOUT_MS);
+    // Whether each open screen is fullscreen, from its last report.
+    const fullscreenRef = useRef({});
+    // The layout of a main screen of the other setup that answered.
+    const otherMainRef = useRef(null);
     // Blocks double clicks while a command is on its way.
     const [sending, setSending] = useState(false);
     // "One drumroll, all revealed": the next DRAW reveals every remaining
@@ -107,7 +116,6 @@ export default function ControlCenter() {
     const togetherRef = useRef(together);
     togetherRef.current = together;
     const channelRef = useRef(null);
-    const now = useNow(1000);
 
     const loadRaffle = useCallback(() => (
         api.get(`/raffles/${raffleId}/display`)
@@ -152,17 +160,23 @@ export default function ControlCenter() {
         setMain(null);
         channelRef.current?.post({ type: 'hello' });
     }, [singleSetup]);
+    useEffect(() => { setOpenPlace(null); }, [raffleId]);
 
     useEffect(() => {
         const raw = openDisplayChannel(raffleId, (message) => {
             const otherSetup = Boolean(message?.layout) && (message.layout === 'single') !== singleSetupRef.current;
             if (message?.type === 'state' && message.screen === 'main' && !otherSetup) {
-                setMain(message);
-                setSeen((current) => ({ ...current, main: Date.now() }));
+                // The same report again (every heartbeat, and once per open
+                // Control Center) keeps the old object, so nothing re-renders.
+                setMain((current) => keepIfEqual(current, message));
+                fullscreenRef.current.main = Boolean(message.fullscreen);
+                heard('main');
             } else if (message?.type === 'state' && message.screen === 'main' && otherSetup) {
-                setOtherMain({ layout: message.layout, at: Date.now() });
+                otherMainRef.current = message.layout;
+                heard('other-main');
             } else if (message?.type === 'presence') {
-                setSeen((current) => ({ ...current, [message.screen]: Date.now() }));
+                fullscreenRef.current[message.screen] = Boolean(message.fullscreen);
+                heard(message.screen);
             }
         });
         // Commands and our presence name the setup's main screen.
@@ -185,7 +199,7 @@ export default function ControlCenter() {
             channelRef.current = null;
             channel.close();
         };
-    }, [raffleId]);
+    }, [raffleId, heard]);
 
     // Redraw: clears the winners so the raffle can be drawn again, with a
     // new number of winners if wanted. The main screen is told to start over
@@ -195,46 +209,127 @@ export default function ControlCenter() {
     const [redrawOpen, setRedrawOpen] = useState(false);
     const [redrawChoice, setRedrawChoice] = useState(null);
     const [redrawCount, setRedrawCount] = useState('');
+    // For a raffle drawn at random that has winners: play it again with the
+    // same winners (the default), or clear them and draw new ones.
+    const [redrawMode, setRedrawMode] = useState('same');
     const [redrawing, setRedrawing] = useState(false);
 
     const openRedraw = () => {
         setRedrawChoice(null);
+        setRedrawMode('same');
         setRedrawCount(String(raffle?.winners_count ?? 1));
         setRedrawOpen(true);
     };
 
+    // One winner taken off — invalid, or listed by mistake — without
+    // redrawing the rest: their place opens up and the next draw fills it.
+    const [removingPlace, setRemovingPlace] = useState(null);
+    const [removing, setRemoving] = useState(false);
+    // A winner changing places with a winner of another raffle.
+    const [swapping, setSwapping] = useState(null);
+    // On a pre-draw, the place just opened: { prize_name, position }, so it
+    // can be filled at random from a developer of the operator's choosing.
+    const [openPlace, setOpenPlace] = useState(null);
+    const removeWinner = async (position) => {
+        setRemoving(true);
+        const gone = (raffle?.winners ?? []).find((item) => item.position === position);
+        try {
+            const { data } = await api.delete(`/raffles/${raffleId}/winners/${position}`);
+            setRemovingPlace(null);
+            await loadRaffle();
+            channelRef.current?.post({ type: 'command', action: 'refresh' });
+            toast.success(data.message ?? 'Winner removed.', { title: 'Winner removed' });
+            setOpenPlace({ position, prize_name: gone?.prize_name ?? raffle?.prize_name ?? 'Prize', ticket_number: gone?.ticket_number ?? null, staged: hasStagedPrizes(raffle) });
+        } catch (error) {
+            toast.error(parseError(error, 'The winner could not be removed.').message);
+        } finally {
+            setRemoving(false);
+        }
+    };
+
+    // With pre-selected winners the raffle is played again, not re-picked:
+    // the revealed winners are cleared and the same ones come out again.
+    // A drawn raffle can be played again too: its winners become its list.
+    const canKeep = !hasStagedPrizes(raffle) && (raffle?.winners?.length ?? 0) > 0;
+    const replay = hasStagedPrizes(raffle) || (canKeep && redrawMode === 'same');
     const redraw = async () => {
         setRedrawing(true);
         try {
-            const { data } = await api.post(`/raffles/${raffleId}/redraw`, {
-                include_previous_winners: redrawChoice === 'include',
-                winners_count: Number(redrawCount),
-            });
+            const { data } = replay
+                ? await api.post(`/raffles/${raffleId}/replay`)
+                : await api.post(`/raffles/${raffleId}/redraw`, {
+                    include_previous_winners: redrawChoice === 'include',
+                    winners_count: Number(redrawCount),
+                });
             await loadRaffle();
             channelRef.current?.post({ type: 'command', action: 'refresh' });
             setTogether(false);
             setRedrawOpen(false);
             const count = data.data.winners_count;
             toast.success(
-                `${count} winner${count === 1 ? '' : 's'} to draw from ${formatNumber(data.data.eligible_count)} tickets. The screens have started over.`,
-                { title: 'Ready to redraw' },
+                replay
+                    ? `The draw reveals the same ${count} winner${count === 1 ? '' : 's'} again, in the same order. The screens have started over.`
+                    : `${count} winner${count === 1 ? '' : 's'} to draw from ${formatNumber(data.data.eligible_count)} tickets. The screens have started over.`,
+                { title: replay ? 'Ready to play again' : 'Ready to redraw' },
             );
         } catch (error) {
-            toast.error(parseError(error, 'The raffle could not be redrawn.').message);
+            toast.error(parseError(error, replay ? 'The pre-draw could not be reset.' : 'The raffle could not be redrawn.').message);
         } finally {
             setRedrawing(false);
+        }
+    };
+
+    // This raffle played again from the playlist: the screens start over.
+    const replayed = useCallback(async () => {
+        await loadRaffle();
+        channelRef.current?.post({ type: 'command', action: 'refresh' });
+        setTogether(false);
+    }, [loadRaffle]);
+
+    // A redraw pressed by mistake: the owner puts the cleared winners back
+    // with the PIN. Whoever was drawn since is cleared again.
+    const [undoOpen, setUndoOpen] = useState(false);
+    const [undoPin, setUndoPin] = useState('');
+    const [undoError, setUndoError] = useState(null);
+    const [undoing, setUndoing] = useState(false);
+    const undoRedraw = async () => {
+        setUndoing(true);
+        setUndoError(null);
+        try {
+            const { data } = await api.post(`/raffles/${raffleId}/undo-redraw`, { pin: undoPin });
+            setUndoOpen(false);
+            setUndoPin('');
+            await loadRaffle();
+            channelRef.current?.post({ type: 'command', action: 'refresh' });
+            toast.success(data.message ?? 'The redraw was undone.', { title: 'Redraw undone' });
+        } catch (error) {
+            setUndoError(parseError(error, 'The redraw could not be undone.').message);
+        } finally {
+            setUndoing(false);
+        }
+    };
+
+    // Locked winners: nothing about them changes until the owner unlocks them with the PIN.
+    const [unlocking, setUnlocking] = useState(false);
+    const lock = async () => {
+        try {
+            await lockWinners({ id: raffleId });
+            await loadRaffle();
+            toast.success('Winners locked: no change without the owner PIN.', { title: 'Locked' });
+        } catch (error) {
+            toast.error(parseError(error, 'The winners could not be locked.').message);
         }
     };
 
     // Whether Space should bring up the next batch of winners.
     const nextBatchRef = useRef(false);
 
-    const connected = (screen) => now - (seen[screen] ?? 0) < PRESENCE_TIMEOUT_MS;
+    const connected = (screen) => Boolean(seen[screen]);
     const mainConnected = connected('main');
 
     // The Logos tab works on whatever raffle the main screen is showing — a
     // pre-draw while it plays — or on this one when no main screen is open.
-    const wallRaffleId = useWallRaffle();
+    const wallRaffleId = useWallRaffle({ raffleId, setup: singleSetup ? 'single' : 'display' });
     const logoRaffleId = wallRaffleId ?? String(raffleId);
     const logoIsThis = logoRaffleId === String(raffleId);
     const [wallRaffle, setWallRaffle] = useState(null);
@@ -252,11 +347,12 @@ export default function ControlCenter() {
     // Only a main screen of the other setup is open (the single screen while
     // this is set for three, or the other way round): follow it, so the draw
     // buttons reach the screen that is actually on the wall.
-    const otherMainOnly = !mainConnected && Boolean(otherMain) && now - otherMain.at < PRESENCE_TIMEOUT_MS;
+    const otherMainOnly = !mainConnected && connected('other-main');
     useEffect(() => {
         if (!otherMainOnly) return;
-        setOtherMain(null);
-        setParam('setup', otherMain.layout === 'single' ? 'one' : null);
+        const layout = otherMainRef.current;
+        forget('other-main');
+        setParam('setup', layout === 'single' ? null : 'three');
     }, [otherMainOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const send = useCallback((action) => {
@@ -286,20 +382,39 @@ export default function ControlCenter() {
             return;
         }
 
-        // A named window: clicking again brings the same window back rather
-        // than opening a second copy. It opens straight onto its LED display
-        // and goes fullscreen there (see lib/ledDisplays).
+        // One named window per screen, whatever the raffle: clicking again —
+        // or opening another raffle — brings the same window back rather than
+        // piling up copies. It opens straight onto its LED display and goes
+        // fullscreen there (see lib/ledDisplays).
         const display = displayFor(screen.key, led.displays, led.assignments);
+        // Open already but not fullscreen: Chrome only opens a window fullscreen
+        // when it is new, so the screen closes itself and is opened again.
+        let fresh = false;
+        if (display && connected(screen.key) && fullscreenRef.current[screen.key] === false) {
+            channelRef.current?.post({ type: 'close-window', screen: screen.key, layout: singleSetup ? 'single' : 'three' });
+            await new Promise((resolve) => { setTimeout(resolve, 250); });
+            fresh = true;
+        }
         const result = await showOnDisplay({
             url: `/raffle/${raffleId}/${screen.path}`,
-            name: `natcon-${screen.key}-${raffleId}`,
+            name: screenWindowName(screen.key),
             display,
+            fresh,
         });
         if (!result.opened) {
             toast.error('Chrome blocked the window. Allow pop-ups for this site (icon at the right of the address bar), then try again.');
         } else if (!result.fullscreen) {
             toast.info(`${screen.label} is open${display ? ' on its display' : ''}. Click Show again to make it fullscreen.`);
         }
+    };
+
+    // Makes the main screen window fullscreen from here, lending it this click.
+    const fullscreenMain = async () => {
+        const result = await fullscreenScreen(screenWindowName('main'));
+        if (result === 'missing') toast.error('The main screen is not open. Open it from the Main screen tab first.');
+        else if (result === 'blocked') toast.error('Chrome blocked the window. Allow pop-ups for this site, then try again.');
+        else if (result === 'failed') toast.info('Chrome would not make it fullscreen from here. Click the fullscreen button on the main screen itself.');
+        else toast.success('The main screen is fullscreen.');
     };
 
     const status = raffle?.status;
@@ -374,13 +489,15 @@ export default function ControlCenter() {
     const finished = main?.phase === 'complete' || (main?.phase === 'idle' && main?.allDrawn);
 
     // Each tab says at a glance what is going on inside it.
-    const wallShowing = mainConnected && (main?.welcome ? 'Welcome showing' : main?.sponsors ? 'Sponsors showing' : main?.prizeMode ? 'Prize display on' : null);
+    const wallShowing = mainConnected && (main?.welcome ? (main.welcomeStyle === 'cli' ? 'CLI standby showing' : 'Welcome showing') : main?.sponsors ? 'Sponsors showing' : null);
+    const prizeShowing = mainConnected && main?.prizeMode ? 'On the screen' : null;
     const tabs = [
         { key: 'draw', label: 'Live draw', icon: Sparkles, badge: `${winners.length}/${total}`, alert: midDraw },
         { key: 'people', label: 'Participants', icon: Users },
         { key: 'all', label: 'All raffles & winners', icon: Trophy },
         { key: 'predrawn', label: 'Pre-drawn', icon: Wand2 },
         { key: 'screen', label: 'Main screen', icon: Monitor, badge: wallShowing, alert: Boolean(wallShowing) },
+        { key: 'prize', label: 'Prize display', icon: MonitorPlay, badge: prizeShowing, alert: Boolean(prizeShowing) },
         { key: 'look', label: 'Logos', icon: ImageIcon },
         { key: 'margins', label: 'Screen margins', icon: Scan },
     ];
@@ -402,6 +519,7 @@ export default function ControlCenter() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <ReservedPickDot raffleId={raffleId} winnersDrawn={raffle.winners?.length ?? 0} midDraw={midDraw} />
                     {/* Refreshes the LED wall's screens without touching them. */}
                     <button
                         type="button"
@@ -416,6 +534,15 @@ export default function ControlCenter() {
                         <RotateCw size={14} />
                         Refresh screens
                     </button>
+                    <button
+                        type="button"
+                        className="btn btn-outline mr-2 px-3 py-1.5 text-xs"
+                        title="Make the main screen window fullscreen"
+                        onClick={fullscreenMain}
+                    >
+                        <Maximize2 size={14} />
+                        Fullscreen
+                    </button>
                     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-dim">Status</span>
                     <StatusChip status={status} />
                 </div>
@@ -424,11 +551,21 @@ export default function ControlCenter() {
             {/* A pre-draw: a draw whose winners are already chosen. */}
             {raffle.is_predraw && (
                 <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-gold/35 bg-gold/[0.07] px-4 py-3">
-                    <Wand2 size={16} className="shrink-0 text-gold" />
+                    {raffle.is_locked ? <Lock size={16} className="shrink-0 text-emerald-300" /> : <Wand2 size={16} className="shrink-0 text-gold" />}
                     <p className="min-w-[12rem] flex-1 text-sm text-muted">
-                        <span className="font-semibold text-white">Pre-draw.</span>{' '}
+                        <span className="font-semibold text-white">{raffle.is_locked ? 'Pre-draw, winners locked.' : 'Pre-draw.'}</span>{' '}
                         Draw as usual: the screens run a real-looking draw and reveal the chosen winners in order.
+                        {raffle.is_locked && ' Nobody can change or take off a winner without the owner PIN.'}
                     </p>
+                    {raffle.is_locked ? (
+                        <button type="button" className="btn btn-ghost" onClick={() => setUnlocking(true)} disabled={midDraw}>
+                            <LockOpen size={15} /> Unlock
+                        </button>
+                    ) : hasStagedPrizes(raffle) && (
+                        <button type="button" className="btn btn-ghost" onClick={lock} disabled={midDraw} title="Lock the winners: no change without the owner PIN">
+                            <Lock size={15} /> Lock winners
+                        </button>
+                    )}
                     {raffle.source_raffle_id && (
                         <button
                             type="button"
@@ -436,7 +573,7 @@ export default function ControlCenter() {
                             disabled={midDraw}
                             onClick={() => {
                                 switchWall(raffle.source_raffle_id);
-                                navigate(`/raffle/${raffle.source_raffle_id}/control${setupKey === 'one' ? '?setup=one' : ''}`);
+                                navigate(`/raffle/${raffle.source_raffle_id}/control${setupKey === 'three' ? '?setup=three' : ''}`);
                             }}
                         >
                             <Undo2 size={15} />
@@ -498,7 +635,7 @@ export default function ControlCenter() {
                                         {!mainConnected
                                             ? 'Main screen not open'
                                             : main?.sponsors ? 'Sponsor show playing'
-                                            : main?.welcome ? 'Welcome screen showing'
+                                            : main?.welcome ? (main.welcomeStyle === 'cli' ? 'CLI standby showing' : 'Welcome screen showing')
                                                 : finished ? 'Raffle complete' : PHASE_LABELS[main?.phase] ?? '—'}
                                     </p>
                                 </div>
@@ -580,7 +717,7 @@ export default function ControlCenter() {
                                     // The open screens move to it in place, still fullscreen.
                                     switchWall(next.id, setupKey === 'one' ? 'single' : 'display');
                                     toast.success(`${next.name} is on the LED wall, ready to draw.`);
-                                    navigate(`/raffle/${next.id}/control${setupKey === 'one' ? '?setup=one' : ''}`);
+                                    navigate(`/raffle/${next.id}/control${setupKey === 'three' ? '?setup=three' : ''}`);
                                 }}
                             />
                         )}
@@ -590,40 +727,139 @@ export default function ControlCenter() {
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div>
                                     <h2 className="font-display text-base font-bold text-white">Winners</h2>
-                                    <p className="mt-0.5 text-xs text-muted">Each winner appears here the moment the main screen reveals them.</p>
+                                    <p className="mt-0.5 text-xs text-muted">
+                                        Each winner appears here the moment the main screen reveals them.
+                                        {raffle.is_locked
+                                            ? ' The winners are locked: none can be taken off without the owner PIN.'
+                                            : ' Hover a winner and click × to take one off — the next draw picks a replacement.'}
+                                    </p>
                                 </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                {raffle.undoable_redraw && !replay && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline border-amber-400/40 px-3 py-1.5 text-xs text-amber-200 hover:border-amber-300"
+                                        onClick={() => setUndoOpen(true)}
+                                        disabled={midDraw || undoing}
+                                        title="Put back the winners the last redraw cleared (owner PIN)"
+                                    >
+                                        <Undo2 size={13} />
+                                        Undo the redraw
+                                    </button>
+                                )}
                                 {winners.length > 0 && (
                                     <button
                                         type="button"
                                         className="btn btn-outline px-3 py-1.5 text-xs"
                                         onClick={openRedraw}
                                         disabled={midDraw || redrawing}
-                                        title={midDraw ? 'Wait for the current draw to finish' : 'Clear the winners and draw again'}
+                                        title={midDraw ? 'Wait for the current draw to finish' : replay ? 'Start the reveal over — the same winners come out again' : 'Clear the winners and draw again'}
                                     >
-                                        <RotateCcw size={13} />
-                                        Redraw
+                                        {replay ? <Play size={13} /> : <RotateCcw size={13} />}
+                                        {replay ? 'Play again' : 'Redraw'}
                                     </button>
                                 )}
+                                </div>
                             </div>
+
+                            {/* A random raffle's next draw set to one developer: say so, until that draw is made. */}
+                            {!openPlace && raffle.next_draw_pool_label && (
+                                <p className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-gold/35 bg-gold/[0.06] px-3.5 py-2.5 text-xs text-gold-bright">
+                                    <Wand2 size={14} className="shrink-0" />
+                                    The next DRAW picks from {raffle.next_draw_pool_label} only.
+                                    <button
+                                        type="button"
+                                        className="ml-auto rounded px-1.5 py-0.5 text-muted transition hover:text-white"
+                                        onClick={async () => {
+                                            try {
+                                                await api.put(`/raffles/${raffleId}/next-draw-pool`, { developer: null });
+                                                await loadRaffle();
+                                            } catch (error) {
+                                                toast.error(parseError(error, 'Could not clear it.').message);
+                                            }
+                                        }}
+                                        disabled={midDraw}
+                                    >
+                                        Back to everyone
+                                    </button>
+                                </p>
+                            )}
+                            {openPlace && (
+                                <FillPlacePanel
+                                    raffleId={raffleId}
+                                    place={openPlace}
+                                    staged={openPlace.staged}
+                                    poolLabel={raffle.draw_pool_label && raffle.draw_pool_label !== 'all participants' ? raffle.draw_pool_label : null}
+                                    disabled={midDraw}
+                                    onClose={() => setOpenPlace(null)}
+                                    onDone={async () => {
+                                        setOpenPlace(null);
+                                        await loadRaffle();
+                                        channelRef.current?.post({ type: 'command', action: 'refresh' });
+                                    }}
+                                />
+                            )}
 
                             <ol className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
                                 {Array.from({ length: total }, (_, index) => {
                                     const winner = winners.find((item) => item.position === index + 1);
                                     const isNewest = winner && main?.phase === 'reveal' && main?.revealed?.position === winner.position;
+                                    const asking = winner && removingPlace === winner.position;
                                     return (
                                         <li
                                             key={index}
-                                            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${
-                                                isNewest ? 'border-gold/60 bg-gold/10' : winner ? 'border-gold/20 bg-white/[0.03]' : 'border-dashed border-white/10'
+                                            className={`group flex items-center justify-between gap-1 rounded-lg border px-3 py-2.5 ${
+                                                asking ? 'border-red-400/40 bg-red-500/10' : isNewest ? 'border-gold/60 bg-gold/10' : winner ? 'border-gold/20 bg-white/[0.03]' : 'border-dashed border-white/10'
                                             }`}
                                         >
                                             <span className={`text-xs font-bold ${winner ? 'text-gold/80' : 'text-muted-dim'}`}>#{index + 1}</span>
-                                            <span
-                                                className={`ml-2 min-w-0 truncate font-display text-sm font-extrabold ${winner ? 'text-gold-bright' : 'text-white/15'}`}
-                                                title={winner ? `${winnerName(winner)} · ticket ${winner.ticket_number}${prizeOf(winner) ? ` · ${prizeOf(winner)}` : ''}` : undefined}
-                                            >
-                                                {winner ? winnerName(winner) : '••••'}
-                                            </span>
+                                            {asking ? (
+                                                <span className="ml-2 flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        className="rounded-md border border-red-400/40 bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25 disabled:opacity-50"
+                                                        onClick={() => removeWinner(winner.position)}
+                                                        disabled={removing || midDraw}
+                                                    >
+                                                        {removing && <Loader2 size={11} className="mr-1 inline animate-spin" />}
+                                                        Remove
+                                                    </button>
+                                                    <button type="button" className="rounded px-1.5 py-0.5 text-xs text-muted transition hover:text-white" onClick={() => setRemovingPlace(null)} disabled={removing}>
+                                                        Keep
+                                                    </button>
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    className={`ml-2 min-w-0 flex-1 truncate font-display text-sm font-extrabold ${winner ? 'text-gold-bright' : 'text-white/15'}`}
+                                                    title={winner ? `${winnerName(winner)} · ticket ${winner.ticket_number}${prizeOf(winner) ? ` · ${prizeOf(winner)}` : ''}` : undefined}
+                                                >
+                                                    {winner ? winnerName(winner) : '••••'}
+                                                </span>
+                                            )}
+                                            {winner && !asking && (
+                                                <button
+                                                    type="button"
+                                                    className="shrink-0 rounded p-0.5 text-muted/60 opacity-0 transition hover:text-gold focus:opacity-100 group-hover:opacity-100 disabled:opacity-0"
+                                                    onClick={() => setSwapping(winner)}
+                                                    disabled={midDraw || redrawing || removing}
+                                                    aria-label={`Swap winner #${winner.position}, ${winnerName(winner)}, with a winner of another raffle`}
+                                                    title="Swap this winner with a winner of another raffle"
+                                                >
+                                                    <ArrowLeftRight size={13} />
+                                                </button>
+                                            )}
+                                            {winner && !asking && !raffle.is_locked && (
+                                                <button
+                                                    type="button"
+                                                    className="shrink-0 rounded p-0.5 text-muted/60 opacity-0 transition hover:text-red-300 focus:opacity-100 group-hover:opacity-100 disabled:opacity-0"
+                                                    onClick={() => setRemovingPlace(winner.position)}
+                                                    disabled={midDraw || redrawing || removing}
+                                                    aria-label={`Remove winner #${winner.position}, ${winnerName(winner)}`}
+                                                    title="Remove this winner — the next draw picks a replacement"
+                                                >
+                                                    <X size={13} />
+                                                </button>
+                                            )}
                                         </li>
                                     );
                                 })}
@@ -631,8 +867,18 @@ export default function ControlCenter() {
                         </section>
                     </div>
 
-                    {/* Screens */}
-                    <aside className="panel h-fit p-6">
+                    {/* The running order, then the screens */}
+                    <aside className="space-y-5">
+                    <PlaylistPanel
+                        raffleId={raffleId}
+                        raffleFileId={raffle.raffle_file_id}
+                        setupKey={setupKey}
+                        busy={midDraw}
+                        reloadKey={`${raffle.status}:${winners.length}`}
+                        onReplayed={replayed}
+                    />
+                    <PrizePhotoPanel raffle={raffle} raffleId={raffleId} onSaved={loadRaffle} />
+                    <div className="panel h-fit p-6">
                         <h2 className="font-display text-base font-bold text-white">Setup</h2>
                         <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-line bg-black/40 p-1" role="radiogroup" aria-label="Screen setup">
                             {Object.entries(SETUPS).map(([key, option]) => (
@@ -749,6 +995,7 @@ export default function ControlCenter() {
                                 The main screen was opened as a live view and cannot be controlled. Close it and use the Open button above.
                             </p>
                         )}
+                    </div>
                     </aside>
                 </div>
             </div>
@@ -782,9 +1029,16 @@ export default function ControlCenter() {
 
                     {/* Every sponsor's logo on the main screen, tier by tier */}
                     <SponsorShowPanel main={main} mainConnected={mainConnected} midDraw={midDraw} post={postCommand} />
+                </div>
+            )}
 
-                    {/* Turn the open main screen into the Prize Display, for a raffle drawn by hand */}
+            {/* The Prize Display: the open main screen shows only a prize, for a raffle drawn by hand. */}
+            {visited.prize && (
+                <div hidden={tab !== 'prize'} className="mt-5 space-y-5">
                     <PrizeDisplayPanel main={main} mainConnected={mainConnected} midDraw={midDraw} post={postCommand} />
+
+                    {/* The winners the host announces, listed on the screen under that prize */}
+                    <MainScreenWinnersPanel main={main} mainConnected={mainConnected} midDraw={midDraw} post={postCommand} />
                 </div>
             )}
 
@@ -817,25 +1071,94 @@ export default function ControlCenter() {
 
             <ConfirmDialog
                 open={redrawOpen}
-                title="Redraw this raffle?"
-                description={
-                    `The ${winners.length} current winner${winners.length === 1 ? '' : 's'} will be cleared and the raffle set back to READY, so it can be drawn again with as many winners as you choose below.\n\n`
-                    + 'The screens start over straight away. The original draws stay in the audit log.'
-                }
-                confirmLabel="Clear winners & redraw"
+                title={canKeep ? 'Redraw this raffle?' : replay ? 'Play this pre-draw again?' : 'Redraw this raffle?'}
+                description={canKeep
+                    ? `"${raffle.name}" has ${winners.length} winner${winners.length === 1 ? '' : 's'}. Play it again on the screens with the same winners, or clear them and draw new ones at random.\n\nThe screens start over straight away. The original draws stay in the audit log.`
+                    : replay
+                        ? `The ${winners.length} revealed winner${winners.length === 1 ? '' : 's'} ${winners.length === 1 ? 'is' : 'are'} cleared from the screens and the pre-draw set back to READY. When it is drawn again, the same winners come out in the same order — nobody on the list changes.\n\nThe screens start over straight away. The earlier reveals stay in the audit log.`
+                        : `The ${winners.length} current winner${winners.length === 1 ? '' : 's'} will be cleared and the raffle set back to READY, so it can be drawn again with as many winners as you choose below.\n\n`
+                        + 'The screens start over straight away. The original draws stay in the audit log.'}
+                confirmLabel={replay ? 'Play again — same winners' : 'Clear winners & redraw'}
                 tone="gold"
                 busy={redrawing}
-                confirmDisabled={!redrawChoice || !validRedrawCount(redrawCount)}
+                confirmDisabled={!replay && (!redrawChoice || !validRedrawCount(redrawCount))}
                 onConfirm={redraw}
                 onCancel={() => setRedrawOpen(false)}
             >
-                <div className="space-y-5">
-                    {!hasPrizes(raffle) && (
-                        <RedrawCount value={redrawCount} onChange={setRedrawCount} eligible={(raffle.eligible_count ?? 0) + winners.length} />
-                    )}
-                    <RedrawChoice value={redrawChoice} onChange={setRedrawChoice} />
+                {canKeep && <RedrawMode value={redrawMode} onChange={setRedrawMode} />}
+                {!replay && (
+                    <div className="space-y-5">
+                        {/* A place is already open (a winner was taken off): the
+                            replacement is one more draw, not a redraw of everyone. */}
+                        {winners.length > 0 && winners.length < total && (
+                            <div className="flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+                                <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-300" />
+                                <div>
+                                    <p className="font-semibold">
+                                        {total - winners.length === 1
+                                            ? 'One place is already open: you probably do not want this.'
+                                            : `${total - winners.length} places are already open: you probably do not want this.`}
+                                    </p>
+                                    <p className="mt-1 text-amber-100/80">
+                                        To replace the winner you took off, close this and press <span className="font-semibold text-white">NEXT WINNER</span> on the live draw: only the open place is drawn and the other {winners.length} stay winners. Redrawing clears all {winners.length} of them.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {!hasPrizes(raffle) && (
+                            <RedrawCount value={redrawCount} onChange={setRedrawCount} eligible={(raffle.eligible_count ?? 0) + winners.length} />
+                        )}
+                        <RedrawChoice value={redrawChoice} onChange={setRedrawChoice} />
+                    </div>
+                )}
+            </ConfirmDialog>
+
+            <ConfirmDialog
+                open={undoOpen}
+                title="Undo the last redraw?"
+                description={raffle.undoable_redraw
+                    ? `The ${raffle.undoable_redraw.cleared} winner${raffle.undoable_redraw.cleared === 1 ? '' : 's'} cleared by the redraw of ${new Date(raffle.undoable_redraw.at).toLocaleString()} come back exactly as drawn — same people, same places, same times. ${winners.length > 0 ? `The ${winners.length} drawn since ${winners.length === 1 ? 'is' : 'are'} cleared and back in play. ` : ''}A winner taken off one at a time before the redraw stays off, so their place is open for a replacement.\n\nOnly the owner can do this, with the owner PIN. The screens update straight away.`
+                    : ''}
+                confirmLabel="Undo the redraw"
+                tone="gold"
+                busy={undoing}
+                confirmDisabled={undoPin.trim() === ''}
+                onConfirm={undoRedraw}
+                onCancel={() => { setUndoOpen(false); setUndoPin(''); setUndoError(null); }}
+            >
+                <div>
+                    <label className="label" htmlFor="undo-owner-pin">Owner PIN</label>
+                    <div className="relative">
+                        <KeyRound size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-dim" />
+                        <input
+                            id="undo-owner-pin"
+                            type="password"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            autoFocus
+                            className="input pl-9"
+                            value={undoPin}
+                            disabled={undoing}
+                            onChange={(event) => setUndoPin(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && undoPin.trim() && !undoing) undoRedraw();
+                            }}
+                        />
+                    </div>
+                    {undoError && <p className="mt-2 text-sm text-red-300">{undoError}</p>}
                 </div>
             </ConfirmDialog>
+
+            <UnlockDialog raffle={unlocking ? { id: raffleId, name: raffle.name } : null} onClose={() => setUnlocking(false)} onDone={loadRaffle} />
+            <SwapWinnerDialog
+                raffle={swapping ? raffle : null}
+                winner={swapping}
+                onClose={() => setSwapping(null)}
+                onDone={async () => {
+                    await loadRaffle();
+                    channelRef.current?.post({ type: 'command', action: 'refresh' });
+                }}
+            />
         </Page>
     );
 }
@@ -1088,37 +1411,107 @@ function LogoTarget({ raffle, onWall }) {
 
 /**
  * The tab bar. It stays at the top while scrolling, so every part of the
- * Control Center is one click away.
+ * Control Center is one click away. When there are more tabs than fit, the
+ * row scrolls sideways: an arrow at either end says so and steps along, the
+ * edges fade, and the active tab is always brought into view.
  */
 function ControlTabs({ tab, onChange, items }) {
+    const rowRef = useRef(null);
+    const [edges, setEdges] = useState({ left: false, right: false });
+
+    // Which way there is more to see.
+    const measure = useCallback(() => {
+        const row = rowRef.current;
+        if (!row) return;
+        const left = row.scrollLeft > 2;
+        const right = row.scrollLeft + row.clientWidth < row.scrollWidth - 2;
+        setEdges((current) => (current.left === left && current.right === right ? current : { left, right }));
+    }, []);
+
+    useEffect(() => {
+        const row = rowRef.current;
+        if (!row) return undefined;
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(row);
+        row.addEventListener('scroll', measure, { passive: true });
+        return () => {
+            observer.disconnect();
+            row.removeEventListener('scroll', measure);
+        };
+    }, [measure, items.length]);
+
+    // The chosen tab comes into view, from the URL or a click, clear of the
+    // arrows at the edges. Measured again once the fonts are in, since the
+    // tabs grow a little when the display font loads.
+    useEffect(() => {
+        const reveal = () => {
+            const row = rowRef.current;
+            const button = row?.querySelector('[aria-selected="true"]');
+            if (!row || !button) return;
+            const pad = 44;
+            const start = button.offsetLeft - pad;
+            const end = button.offsetLeft + button.offsetWidth + pad;
+            if (start < row.scrollLeft) row.scrollTo({ left: Math.max(0, start), behavior: 'smooth' });
+            else if (end > row.scrollLeft + row.clientWidth) row.scrollTo({ left: end - row.clientWidth, behavior: 'smooth' });
+        };
+        reveal();
+        document.fonts?.ready.then(reveal);
+    }, [tab]);
+
+    const step = (dir) => rowRef.current?.scrollBy({ left: dir * Math.max(160, rowRef.current.clientWidth * 0.6), behavior: 'smooth' });
+
     return (
         <nav className="sticky top-0 z-20 -mx-5 mt-5 border-b border-line bg-ink/95 px-5 pt-2 backdrop-blur lg:-mx-8 lg:px-8">
-            <div className="flex gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none]" role="tablist" aria-label="Control Center sections">
-                {items.map(({ key, label, icon: Icon, badge, alert }) => {
-                    const active = key === tab;
-                    return (
-                        <button
-                            key={key}
-                            type="button"
-                            role="tab"
-                            aria-selected={active}
-                            onClick={() => onChange(key)}
-                            className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${
-                                active ? 'border-gold text-white' : 'border-transparent text-muted hover:text-white'
-                            }`}
-                        >
-                            <Icon size={16} className={active ? 'text-gold' : ''} />
-                            {label}
-                            {badge && (
-                                <span className={`tabular rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ${
-                                    alert ? 'bg-gold/20 text-gold-bright' : 'bg-white/[0.06] text-muted'
-                                }`}>
-                                    {badge}
-                                </span>
-                            )}
+            <div className="relative">
+                <div
+                    ref={rowRef}
+                    className="flex gap-1 overflow-x-auto overflow-y-hidden scroll-smooth scroll-px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    role="tablist"
+                    aria-label="Control Center sections"
+                >
+                    {items.map(({ key, label, icon: Icon, badge, alert }) => {
+                        const active = key === tab;
+                        return (
+                            <button
+                                key={key}
+                                type="button"
+                                role="tab"
+                                aria-selected={active}
+                                onClick={() => onChange(key)}
+                                className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${
+                                    active ? 'border-gold text-white' : 'border-transparent text-muted hover:text-white'
+                                }`}
+                            >
+                                <Icon size={16} className={active ? 'text-gold' : ''} />
+                                {label}
+                                {badge && (
+                                    <span className={`tabular rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ${
+                                        alert ? 'bg-gold/20 text-gold-bright' : 'bg-white/[0.06] text-muted'
+                                    }`}>
+                                        {badge}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* More tabs that way: a fade over the edge and an arrow to step along. */}
+                {edges.left && (
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center bg-gradient-to-r from-ink via-ink/90 to-transparent pr-8">
+                        <button type="button" onClick={() => step(-1)} className="pointer-events-auto rounded-full border border-line bg-ink p-1 text-muted shadow transition hover:text-gold" aria-label="Earlier tabs">
+                            <ChevronLeft size={16} />
                         </button>
-                    );
-                })}
+                    </div>
+                )}
+                {edges.right && (
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-ink via-ink/90 to-transparent pl-8">
+                        <button type="button" onClick={() => step(1)} className="pointer-events-auto rounded-full border border-line bg-ink p-1 text-muted shadow transition hover:text-gold" aria-label="More tabs">
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                )}
             </div>
         </nav>
     );

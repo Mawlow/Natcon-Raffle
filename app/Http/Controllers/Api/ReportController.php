@@ -28,6 +28,7 @@ class ReportController extends Controller
         $this->authorize('viewAny', Raffle::class);
 
         $raffles = Raffle::query()
+            ->played()
             ->with(['sourceRaffle:id,name', 'winners.participant', 'winners.prize'])
             ->withCount('participants')
             ->latest('id')
@@ -62,6 +63,7 @@ class ReportController extends Controller
         $this->authorize('viewAny', Raffle::class);
 
         $raffles = Raffle::query()
+            ->played()
             ->with(['sourceRaffle:id,name', 'winners.participant', 'winners.prize'])
             ->withCount('participants')
             ->oldest('id')
@@ -250,6 +252,7 @@ class ReportController extends Controller
             'email' => $winner->participant?->email,
             'tag' => $winner->participant?->category,
             'developers' => implode(', ', (array) ($winner->participant?->developers ?? [])),
+            'location' => $winner->participant?->location,
             'drawn_at' => $winner->drawn_at?->toIso8601String(),
             // Day 1 (the 18th) or Day 2 (the 19th), in Philippine time.
             'event_day' => EventDay::of($winner->drawn_at),
@@ -264,7 +267,7 @@ class ReportController extends Controller
             $handle = fopen('php://output', 'w');
             // A byte-order mark, so Excel reads names with ñ and accents correctly.
             fwrite($handle, "\xEF\xBB\xBF");
-            fputcsv($handle, ['Raffle', 'Type', 'Winner #', 'Prize', 'Name', 'Ticket number', 'Phone', 'Email', 'Tag', 'Developers', 'Day', 'Drawn at']);
+            fputcsv($handle, ['Raffle', 'Type', 'Winner #', 'Prize', 'Name', 'Ticket number', 'Phone', 'Email', 'Tag', 'Developers', 'Location', 'Day', 'Drawn at']);
 
             foreach ($raffles as $raffle) {
                 foreach ($raffle->winners as $winner) {
@@ -281,6 +284,7 @@ class ReportController extends Controller
                         $row['email'],
                         $row['tag'],
                         $row['developers'],
+                        $row['location'],
                         $row['event_day'],
                         $winner->drawn_at?->copy()->timezone(EventDay::TIMEZONE)->format('Y-m-d H:i'),
                     ]);

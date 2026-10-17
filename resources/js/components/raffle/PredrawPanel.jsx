@@ -1,12 +1,16 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Image as ImageIcon, Loader2, MonitorPlay, Plus, Trash2, Undo2, Wand2 } from 'lucide-react';
+import { ChevronDown, Image as ImageIcon, Loader2, Lock, LockOpen, MonitorPlay, Play, Plus, Trash2, Undo2, Wand2 } from 'lucide-react';
 import api, { parseError } from '../../lib/api';
 import { switchWall } from '../../lib/wallSwitch';
 import { useToast } from '../../context/ToastContext';
+import { dayLabel, setLabel } from '../../lib/sets';
+import SetFolders from './SetFolders';
 import StagedWinnersPanel from './StagedWinnersPanel';
 import CompanyLogoPanel from './CompanyLogoPanel';
 import CornerLogoPanel from './CornerLogoPanel';
+import RedrawDialog from './RedrawDialog';
+import UnlockDialog, { lockWinners } from './UnlockDialog';
 
 /**
  * The Control Center's "Pre-drawn" tab: draws whose winners were chosen
@@ -19,6 +23,12 @@ import CornerLogoPanel from './CornerLogoPanel';
  * participants from `raffleId` (or, on a pre-draw, from the raffle it came from).
  * Given `raffleFileId` — a raffle file's "Pre-draw" tab — it lists that
  * file's pre-draws, and a new one takes the file's participants.
+ *
+ * Pre-draws are kept in set folders (First Set, Second Set, …), like the
+ * file's Ready to Draw tab: the order they are played in at the event.
+ * Played ones stay in their folder, so the record is complete. A locked pre-draw's winners cannot be changed —
+ * a draw already made, kept to be played again — unless the owner unlocks
+ * it with the PIN.
  */
 export default memo(PredrawPanel);
 
@@ -29,7 +39,7 @@ const statusOf = (predraw) => {
     return { label: 'Ready to play', tone: 'border-gold/40 bg-gold/15 text-gold-bright' };
 };
 
-function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = false, hidePlayed = false, onChanged = null, initialOpen = null }) {
+function PredrawPanel({ raffleId = null, raffleFileId = null, day = undefined, setupKey, busy = false, hidePlayed = false, onChanged = null, initialOpen = null }) {
     const toast = useToast();
     const navigate = useNavigate();
     const [predraws, setPredraws] = useState(null);
@@ -40,13 +50,25 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
     const [open, setOpen] = useState(initialOpen);
     const [confirmConvert, setConfirmConvert] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
+    // Played again (its revealed winners cleared, the list kept), or unlocked with the PIN.
+    const [replaying, setReplaying] = useState(null);
+    const [unlocking, setUnlocking] = useState(null);
+    const [savingSet, setSavingSet] = useState(null);
+    // The day and set folders open in the list; null shows the folders.
+    const [openDay, setOpenDay] = useState(null);
+    const [openSet, setOpenSet] = useState(null);
 
     const load = useCallback(() => (
         api.get('/predraws', { params: raffleFileId ? { raffle_file_id: raffleFileId } : undefined })
-            // A raffle file lists its played pre-draws under "Completed" instead.
-            .then(({ data }) => setPredraws((data.data ?? []).filter((predraw) => !hidePlayed || predraw.status !== 'COMPLETED')))
+            // A raffle file lists its played pre-draws under "Completed" instead —
+            // except the ones kept (locked) to be played again at the event: those
+            // wait here in their set folders until they are played.
+            // Given a day (a raffle file's Day 1, Day 2, …), only that day's pre-draws.
+            .then(({ data }) => setPredraws((data.data ?? [])
+                .filter((predraw) => day === undefined || (predraw.draw_day ?? null) === day)
+                .filter((predraw) => !hidePlayed || predraw.status !== 'COMPLETED' || predraw.is_locked)))
             .catch(() => setPredraws([]))
-    ), [raffleFileId, hidePlayed]);
+    ), [raffleFileId, hidePlayed, day]);
     useEffect(() => {
         load();
     }, [load]);
@@ -58,7 +80,7 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
         try {
             const { data } = await api.post(
                 raffleFileId ? `/raffle-files/${raffleFileId}/predraws` : `/raffles/${raffleId}/predraws`,
-                { name: name.trim() },
+                { name: name.trim(), ...(day ? { draw_day: day } : {}) },
             );
             setName('');
             await load();
@@ -72,11 +94,17 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
         }
     };
 
+    // The sets in use, for the set picker: First Set, Second Set, … and one more.
+    const usedSets = [...new Set((predraws ?? []).map((predraw) => predraw.draw_set).filter(Boolean))].sort((a, b) => a - b);
+    const nextSet = (usedSets.at(-1) ?? 0) + 1;
+    const usedDays = [...new Set((predraws ?? []).map((predraw) => predraw.draw_day).filter(Boolean))].sort((a, b) => a - b);
+    const nextDay = (usedDays.at(-1) ?? 0) + 1;
+
     const play = (predraw) => {
         // Every open screen moves, whichever setup it is.
         switchWall(predraw.id);
         toast.success(`${predraw.name} is going up on the main screen.`);
-        navigate(`/raffle/${predraw.id}/control${setupKey === 'one' ? '?setup=one' : ''}`);
+        navigate(`/raffle/${predraw.id}/control${setupKey === 'three' ? '?setup=three' : ''}`);
     };
 
     // Back to an ordinary raffle: only while none of its winners is revealed.
@@ -90,6 +118,36 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
             toast.success(`"${predraw.name}" is an ordinary raffle again. Edit it to set its prizes, then it is ready to draw.`);
         } catch (failure) {
             toast.error(parseError(failure, 'The pre-draw could not be changed.').message);
+        }
+    };
+
+    const changed = async () => {
+        await load();
+        onChanged?.();
+    };
+
+    const lock = async (predraw) => {
+        try {
+            await lockWinners(predraw);
+            await changed();
+            toast.success(`"${predraw.name}" is locked: its winners cannot be changed without the owner PIN.`);
+        } catch (failure) {
+            toast.error(parseError(failure, 'The pre-draw could not be locked.').message);
+        }
+    };
+
+    // Which day and set it is played in: Day 1, First Set, … or none.
+    const putInSet = async (predraw, set, field = 'draw_set') => {
+        setSavingSet(predraw.id);
+        try {
+            await api.post('/raffles/sets', { raffle_ids: [predraw.id], [field]: set });
+            await changed();
+            const name = field === 'draw_day' ? dayLabel(set) : `the ${setLabel(set)}`;
+            toast.success(set ? `"${predraw.name}" is in ${name}.` : `"${predraw.name}" is out of its ${field === 'draw_day' ? 'day' : 'set'}.`);
+        } catch (failure) {
+            toast.error(parseError(failure, 'The set could not be saved.').message);
+        } finally {
+            setSavingSet(null);
         }
     };
 
@@ -147,11 +205,47 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
             ) : predraws.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">No pre-draws yet.</p>
             ) : (
+                /* Inside a raffle file's day: the day's set folders. Elsewhere (the Control Center): day folders holding set folders. */
+                (day === undefined
+                    ? (render) => (
+                        <SetFolders
+                            items={predraws}
+                            field="draw_day"
+                            label={dayLabel}
+                            openSet={openDay}
+                            onOpen={(next) => { setOpenDay(next); setOpenSet(null); }}
+                            backLabel="All days"
+                            noneLabel="Not in a day"
+                            emptyLabel="No pre-draws in this folder."
+                            summary={(inDay) => {
+                                const played = inDay.filter((predraw) => predraw.status === 'COMPLETED').length;
+                                return `${inDay.length - played} to play${played ? ` · ${played} played` : ''}`;
+                            }}
+                        >
+                            {render}
+                        </SetFolders>
+                    )
+                    : (render) => render(predraws)
+                )((inDay) => (
+                <SetFolders
+                    items={inDay}
+                    openSet={openSet}
+                    onOpen={setOpenSet}
+                    backLabel={openDay ? dayLabel(openDay) : 'All folders'}
+                    noneLabel="Not in a set"
+                    emptyLabel="No pre-draws in this set."
+                    summary={(inSet) => {
+                        const played = inSet.filter((predraw) => predraw.status === 'COMPLETED').length;
+                        return `${inSet.length - played} to play${played ? ` · ${played} played` : ''}`;
+                    }}
+                >
+                {(visible) => (
                 <ul className="space-y-3">
-                    {predraws.map((predraw) => {
+                    {visible.map((predraw) => {
                         const status = statusOf(predraw);
                         const expanded = open === predraw.id;
                         const current = String(predraw.id) === String(raffleId);
+                        const locked = Boolean(predraw.is_locked);
                         return (
                             <li key={predraw.id} className={`panel p-5 ${current ? 'ring-1 ring-gold/40' : ''}`}>
                                 <div className="flex flex-wrap items-start gap-3">
@@ -159,6 +253,9 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
                                         <div className="flex flex-wrap items-center gap-2">
                                             <p className="font-display text-base font-bold text-white">{predraw.name}</p>
                                             <span className={`chip ${status.tone}`}>{status.label}</span>
+                                            {locked && (
+                                                <span className="chip border-emerald-400/30 bg-emerald-500/10 text-emerald-300" title="Winners locked — the owner PIN unlocks them"><Lock size={11} /> Locked</span>
+                                            )}
                                             {current && <span className="chip border-gold/40 bg-gold/15 text-gold-bright">Open now</span>}
                                         </div>
                                         <p className="mt-1 text-xs text-muted">
@@ -175,14 +272,44 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
                                             <p className="mt-0.5 text-xs text-muted-dim">Participants from {predraw.source_raffle.name}</p>
                                         )}
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {day === undefined && (<>
+                                        <label className="sr-only" htmlFor={`predraw-day-${predraw.id}`}>Day</label>
+                                        <select
+                                            id={`predraw-day-${predraw.id}`}
+                                            className="input w-auto py-2 text-xs"
+                                            value={predraw.draw_day ?? ''}
+                                            disabled={savingSet === predraw.id}
+                                            onChange={(event) => putInSet(predraw, event.target.value ? Number(event.target.value) : null, 'draw_day')}
+                                            title="Which day it is played on"
+                                        >
+                                            <option value="">No day</option>
+                                            {[...usedDays, nextDay].map((option) => (
+                                                <option key={option} value={option}>{option === nextDay ? `New: ${dayLabel(option)}` : dayLabel(option)}</option>
+                                            ))}
+                                        </select>
+                                        </>)}
+                                        <label className="sr-only" htmlFor={`predraw-set-${predraw.id}`}>Set</label>
+                                        <select
+                                            id={`predraw-set-${predraw.id}`}
+                                            className="input w-auto py-2 text-xs"
+                                            value={predraw.draw_set ?? ''}
+                                            disabled={savingSet === predraw.id}
+                                            onChange={(event) => putInSet(predraw, event.target.value ? Number(event.target.value) : null)}
+                                            title="Which set it is played in"
+                                        >
+                                            <option value="">Not in a set</option>
+                                            {[...usedSets, nextSet].map((set) => (
+                                                <option key={set} value={set}>{set === nextSet ? `New: ${setLabel(set)}` : setLabel(set)}</option>
+                                            ))}
+                                        </select>
                                         <button
                                             type="button"
                                             className="btn btn-outline"
                                             onClick={() => setOpen(expanded ? null : predraw.id)}
                                             aria-expanded={expanded}
                                         >
-                                            {expanded ? 'Close' : 'Set up'}
+                                            {expanded ? 'Close' : locked ? 'Winners' : 'Set up'}
                                             <ChevronDown size={14} className={`transition ${expanded ? 'rotate-180' : ''}`} />
                                         </button>
                                         <button
@@ -195,7 +322,27 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
                                             <MonitorPlay size={15} />
                                             Play on main screen
                                         </button>
-                                        {predraw.winners_drawn === 0 && !current && (
+                                        {predraw.winners_drawn > 0 && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline"
+                                                onClick={() => setReplaying(predraw)}
+                                                disabled={busy || current}
+                                                title={current ? 'Use Play again in the Live draw tab' : 'Clear the revealed winners so the draw reveals the same winners again'}
+                                            >
+                                                <Play size={15} /> Play again
+                                            </button>
+                                        )}
+                                        {locked ? (
+                                            <button type="button" className="btn btn-ghost" onClick={() => setUnlocking(predraw)} title="Unlock the winners with the owner PIN">
+                                                <LockOpen size={15} /> Unlock
+                                            </button>
+                                        ) : predraw.winners_count > 0 && (
+                                            <button type="button" className="btn btn-ghost" onClick={() => lock(predraw)} title="Lock the winners: no change without the owner PIN">
+                                                <Lock size={15} /> Lock
+                                            </button>
+                                        )}
+                                        {predraw.winners_drawn === 0 && !current && !locked && (
                                             confirmConvert === predraw.id ? (
                                                 <>
                                                     <button type="button" className="btn btn-outline" onClick={() => toRaffle(predraw)}>Yes, make it a raffle</button>
@@ -212,7 +359,7 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
                                                 </button>
                                             )
                                         )}
-                                        {confirmDelete === predraw.id ? (
+                                        {locked ? null : confirmDelete === predraw.id ? (
                                             <>
                                                 <button type="button" className="btn btn-ghost text-red-300" onClick={() => remove(predraw)}>Yes, delete</button>
                                                 <button type="button" className="btn btn-ghost" onClick={() => setConfirmDelete(null)}>Cancel</button>
@@ -237,7 +384,13 @@ function PredrawPanel({ raffleId = null, raffleFileId = null, setupKey, busy = f
                         );
                     })}
                 </ul>
+                )}
+                </SetFolders>
+                ))
             )}
+
+            <RedrawDialog raffle={replaying} onClose={() => setReplaying(null)} onDone={changed} />
+            <UnlockDialog raffle={unlocking} onClose={() => setUnlocking(null)} onDone={changed} />
         </section>
     );
 }

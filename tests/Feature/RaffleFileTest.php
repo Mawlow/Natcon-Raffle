@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ParticipantStatus;
 use App\Models\Participant;
 use App\Models\Raffle;
+use App\Services\RaffleDrawService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -255,6 +257,13 @@ class RaffleFileTest extends TestCase
         $this->getJson("/api/raffles/{$two}")->assertJsonPath('data.draw_set', null);
 
         $this->postJson('/api/raffles/sets', ['raffle_ids' => [], 'draw_set' => 1])->assertUnprocessable();
+
+        // Days sit above sets; sending only a day leaves the sets alone.
+        $this->postJson('/api/raffles/sets', ['raffle_ids' => [$one, $three], 'draw_day' => 2])->assertOk();
+        $this->getJson("/api/raffles/{$one}")->assertJsonPath('data.draw_day', 2)->assertJsonPath('data.draw_set', 1);
+        $this->postJson('/api/raffles/sets', ['raffle_ids' => [$one], 'draw_day' => null])->assertOk();
+        $this->getJson("/api/raffles/{$one}")->assertJsonPath('data.draw_day', null);
+        $this->postJson('/api/raffles/sets', ['raffle_ids' => [$one]])->assertUnprocessable();
     }
 
     public function test_a_raffle_can_be_changed_into_a_pre_draw_and_back(): void
@@ -270,7 +279,8 @@ class RaffleFileTest extends TestCase
         $this->postJson("/api/raffles/{$id}/convert", ['to' => 'predraw'])->assertOk()
             ->assertJsonPath('data.is_predraw', true)
             ->assertJsonPath('data.status', 'READY')
-            ->assertJsonPath('data.draw_set', null)
+            // It keeps its set: pre-draws are played in set order too.
+            ->assertJsonPath('data.draw_set', 1)
             ->assertJsonCount(0, 'data.prizes');
         $this->getJson("/api/predraws?raffle_file_id={$fileId}")->assertJsonCount(1, 'data');
 
@@ -298,5 +308,55 @@ class RaffleFileTest extends TestCase
         $this->postJson("/api/raffles/{$id}/draw")->assertSuccessful();
 
         $this->postJson("/api/raffles/{$id}/convert", ['to' => 'predraw'])->assertStatus(409);
+    }
+
+    public function test_everyone_in_a_file_wins_once_across_its_raffles(): void
+    {
+        $fileId = $this->makeFile();
+        $this->postJson("/api/raffle-files/{$fileId}/participants", [
+            'file' => $this->csv("ticket_number,name\n001,Ana\n002,Ben\n003,Cy\n004,Dee\n"),
+        ])->assertCreated();
+
+        $make = fn (string $name, int $winners) => Raffle::findOrFail($this->postJson('/api/raffles', [
+            'name' => $name,
+            'raffle_file_id' => $fileId,
+            'ready' => true,
+            'prizes' => [['winners_count' => $winners, 'prize_name' => 'Cash Prize', 'prize_type' => 'cash', 'prize_value' => 500]],
+        ])->assertCreated()->json('data.id'));
+
+        $draws = app(RaffleDrawService::class);
+        $first = $make('First Draw', 2);
+        $won = array_map(fn ($o) => $o->winner->ticket_number, $draws->drawAll($first));
+        sort($won);
+
+        // A raffle made afterwards shows them as winners and leaves them out.
+        $second = $make('Second Draw', 2);
+        $this->assertSame(2, $second->participants()->where('status', ParticipantStatus::Winner->value)->count());
+        $this->assertSame(2, $draws->eligibleTicketCount($second));
+        $this->getJson("/api/raffles/{$second->id}/participants/pool-count")->assertOk()->assertJsonPath('data.count', 2);
+
+        $secondWon = array_map(fn ($o) => $o->winner->ticket_number, $draws->drawAll($second));
+        sort($secondWon);
+        $this->assertSame([], array_intersect($won, $secondWon));
+        $everyone = array_merge($won, $secondWon);
+        sort($everyone);
+        $this->assertSame(['001', '002', '003', '004'], $everyone);
+
+        // The first raffle's winners show as winners in the second's list too.
+        foreach ($won as $ticket) {
+            $this->assertSame(ParticipantStatus::Winner, $second->participants()->where('ticket_number', $ticket)->first()->status);
+        }
+
+        // Everyone has won once: a third raffle has everyone back in play.
+        $third = $make('Third Draw', 1);
+        $this->assertSame(4, $draws->eligibleTicketCount($third));
+
+        // Redrawing the first raffle puts its winners back in play everywhere
+        // in the file — and, two people never having won, only they are drawn.
+        $this->postJson("/api/raffles/{$first->id}/redraw", ['include_previous_winners' => true])->assertOk();
+        $this->assertSame(2, $draws->eligibleTicketCount($third));
+        foreach ($won as $ticket) {
+            $this->assertSame(ParticipantStatus::Active, $third->participants()->where('ticket_number', $ticket)->first()->status);
+        }
     }
 }

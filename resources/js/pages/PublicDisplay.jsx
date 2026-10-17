@@ -5,6 +5,7 @@ import { Maximize2, Minimize2, Play, Radio, RotateCw, Volume2, VolumeX } from 'l
 import { refreshScreen } from '../lib/refreshScreen';
 import api, { parseError } from '../lib/api';
 import { useSoundEngine } from '../lib/useSound';
+import { windowIsFullscreen } from '../lib/ledDisplays';
 import { HEARTBEAT_MS, PRESENCE_TIMEOUT_MS, keepIfSame, keepWinnersIfSame, openDisplayChannel, usePresence } from '../lib/displaySync';
 import NameRoller from '../components/display/NameRoller';
 import Countdown from '../components/display/Countdown';
@@ -15,6 +16,26 @@ import WinnerStrip, { SIDE_LAYOUT_FROM, WinnerSides } from '../components/displa
 import FinalWinners from '../components/display/FinalWinners';
 import FitBox from '../components/display/FitBox';
 import SingleScreenHeader from '../components/display/SingleScreenHeader';
+import SantaSleigh from '../components/display/SantaSleigh';
+import LOGOS from '../../data/raffle-logos.json';
+import ChristmasDecor from '../components/display/ChristmasDecor';
+
+// The CLI standby's pictures, fetched as soon as the screen opens so the
+// standby comes up at once when it is chosen.
+// Bump the version whenever the pictures change, so no screen shows a cached old one.
+const CLI_STANDBY_VERSION = 4;
+const CLI_STANDBY_IMAGES = [`/images/cli-standby-people.webp?v=${CLI_STANDBY_VERSION}`, `/images/cli-standby-lettering.webp?v=${CLI_STANDBY_VERSION}`];
+// The CLI standby is Cebu Landmasters' screen: its corner logos are always
+// Filipino Homes on the left and Cebu Landmasters on the right, at fixed
+// sizes, whatever raffle is on the wall.
+const logoById = (id) => LOGOS.find((logo) => logo.id === id) ?? null;
+const CLI_STANDBY_HEADER = {
+    logos: [],
+    logo_left: logoById('filipino-homes/filipinohomes-logo-2'),
+    logo_right: logoById('developers/cebu-landdmasters'),
+    prize_name: null,
+};
+const CLI_STANDBY_SIZES = { event: 1, company: 1, congrats: 1.7, corner: 1.7, cornerLeft: 1.7, cornerRight: 1.85, cornerLeftMargin: 0, cornerRightMargin: 0 };
 import { batchKey, batchRemaining, batchSize, winnerPrizeLabel, withPrizeOnStage } from '../lib/prizes';
 import ShowcaseHeader from '../components/display/ShowcaseHeader';
 import HashtagMark from '../components/display/HashtagMark';
@@ -542,12 +563,23 @@ function DisplayScreens({ single = false, onScreen }) {
     // with nothing drawn yet; START, DRAW and the Prize Display take it down.
     // Kept across a reload (null = not chosen yet).
     const [welcomeChoice, setWelcomeChoice] = useState(() => loadWelcome(raffleId));
-    const chooseWelcome = useCallback((on) => setWelcomeChoice(saveWelcome(raffleId, on)), [raffleId]);
+    // Which welcome screen: the landing page ('landing', the default), or the
+    // CLI standby ('cli') — only while the Control Center has chosen it. Taking
+    // the welcome down, or moving to another raffle, goes back to the landing page.
+    const [welcomeStyle, setWelcomeStyle] = useState('landing');
+    const chooseWelcome = useCallback((on) => {
+        setWelcomeChoice(saveWelcome(raffleId, on));
+        if (!on) setWelcomeStyle('landing');
+    }, [raffleId]);
+    useEffect(() => { setWelcomeStyle('landing'); }, [raffleId]);
     const welcome = welcomeChoice ?? (raffle ? winners.length === 0 && phase === PHASES.IDLE : false);
     // Which day the welcome screen shows: '18', '19', or 'both' for the
     // convention's dates. Chosen in the Control Center; one choice for
     // every raffle, kept across a reload.
     const [welcomeDay, setWelcomeDay] = useState(loadWelcomeDay);
+    useEffect(() => {
+        CLI_STANDBY_IMAGES.forEach((src) => { const image = new Image(); image.src = src; });
+    }, []);
     // The sponsor show: every sponsor's logo, tier by tier, on the wall
     // between draws. The Control Center turns it on, steps through it or
     // lets it play; START, DRAW, the welcome screen and the Prize Display
@@ -619,12 +651,13 @@ function DisplayScreens({ single = false, onScreen }) {
         prizeMode,
         welcome,
         welcomeDay,
+        welcomeStyle,
         sponsors,
         sponsorSlide,
         sponsorPlaying,
         sponsorInterval,
         sponsorLogoSize,
-    }), [single, phase, winners, currentWinner, raffle, remaining, allDrawn, drawAllMode, autoRun, drawError, canDraw, finalPages, allRevealed, showcase, perPage, bottomSpace, transition, prizeMode, welcome, welcomeDay, sponsors, sponsorSlide, sponsorPlaying, sponsorInterval, sponsorLogoSize]);
+    }), [single, phase, winners, currentWinner, raffle, remaining, allDrawn, drawAllMode, autoRun, drawError, canDraw, finalPages, allRevealed, showcase, perPage, bottomSpace, transition, prizeMode, welcome, welcomeDay, welcomeStyle, sponsors, sponsorSlide, sponsorPlaying, sponsorInterval, sponsorLogoSize]);
     const syncStateRef = useRef(syncState);
     syncStateRef.current = syncState;
 
@@ -688,6 +721,7 @@ function DisplayScreens({ single = false, onScreen }) {
         else if (action === 'sponsor-interval' && SPONSOR_INTERVALS.includes(message.seconds)) setSponsorInterval(saveSponsorInterval(message.seconds));
         else if (action === 'sponsor-logo-size' && Number.isFinite(message.value)) setSponsorLogoSize(saveSponsorLogoSize(clampSponsorLogoSize(message.value)));
         else if (action === 'welcome-day' && isWelcomeDay(message.day)) setWelcomeDay(saveWelcomeDay(message.day));
+        else if (action === 'welcome-style' && isWelcomeStyle(message.style)) setWelcomeStyle(message.style);
         else if (action === 'start' && phase === PHASES.IDLE && !allDrawn) startEvent();
         else if (action === 'draw' && phase === PHASES.READY) handleDraw({ together: message.together, requestId: message.id });
         else if (action === 'next' && phase === PHASES.REVEAL && !autoRun) handleNext();
@@ -699,14 +733,22 @@ function DisplayScreens({ single = false, onScreen }) {
         else if (action === 'bottom-space' && Number.isFinite(message.value)) setBottomSpace(saveBottomSpace(message.value));
     };
 
+    const lastPostRef = useRef(0);
     const postState = useCallback(() => {
+        lastPostRef.current = Date.now();
         channelRef.current?.post({
             ...syncStateRef.current,
             // Sound can only start once someone has clicked this window at
             // least once; the Control Center warns the operator until then.
             audioReady: navigator.userActivation ? navigator.userActivation.hasBeenActive : true,
+            fullscreen: windowIsFullscreen(),
         });
     }, []);
+    // Several Control Centers each ask every heartbeat: answer at most a few
+    // times a second, or every open tab gets flooded with the same report.
+    const postStateIfStale = useCallback(() => {
+        if (Date.now() - lastPostRef.current >= HEARTBEAT_MS / 3) postState();
+    }, [postState]);
 
     useEffect(() => {
         const channel = openDisplayChannel(raffleId, (message) => {
@@ -717,9 +759,11 @@ function DisplayScreens({ single = false, onScreen }) {
             if (message?.type === 'hello') postState();
             else if (message?.type === 'control-presence') {
                 touchControl();
-                postState();
+                postStateIfStale();
             }
             else if (message?.type === 'command') commandRef.current?.(message.action, message);
+            // The Control Center is about to open this screen again, fullscreen.
+            else if (message?.type === 'close-window' && message.screen === 'main' && message.layout === (single ? 'single' : 'three')) window.close();
         });
         channelRef.current = channel;
         const heartbeat = setInterval(postState, HEARTBEAT_MS);
@@ -729,7 +773,7 @@ function DisplayScreens({ single = false, onScreen }) {
             channelRef.current = null;
             channel.close();
         };
-    }, [raffleId, postState, single]);
+    }, [raffleId, postState, postStateIfStale, single]);
 
     useEffect(() => {
         if (raffle) postState();
@@ -756,12 +800,49 @@ function DisplayScreens({ single = false, onScreen }) {
         return (
             <div className="screen-root relative h-dvh w-full overflow-hidden bg-ink">
                 <EventBackdrop />
+                {welcomeStyle === 'cli' ? (
+                    /* CLI standby: the raffle's logos across the top — one in each
+                       corner, NATCON in the middle — and the CLI graphic beneath,
+                       as big as the wall allows. */
+                    <div className="relative flex h-full w-full flex-col items-center">
+                        {/* Lights, snow and holly; Santa's sleigh flying across, just under the logos. */}
+                        <ChristmasDecor />
+                        <SantaSleigh />
+                        <SingleScreenHeader raffle={CLI_STANDBY_HEADER} sizes={CLI_STANDBY_SIZES} />
+                        <div className="flex min-h-0 w-full flex-1 items-end justify-center px-[3vw] pt-[1vh]">
+                            {/* The graphic in two layers, each a full 16:9 picture so they line
+                                up: the two men in the middle and the lettering either side. Both stand still. */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.97 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                                className="relative h-full w-full"
+                            >
+                                <img
+                                    src={CLI_STANDBY_IMAGES[1]}
+                                    decoding="sync"
+                                    fetchPriority="high"
+                                    alt=""
+                                    className="absolute inset-0 h-full w-full object-contain object-bottom drop-shadow-[0_10px_40px_rgba(0,0,0,0.6)]"
+                                />
+                                <img
+                                    src={CLI_STANDBY_IMAGES[0]}
+                                    decoding="sync"
+                                    fetchPriority="high"
+                                    alt=""
+                                    className="absolute inset-0 h-full w-full object-contain object-bottom drop-shadow-[0_10px_40px_rgba(0,0,0,0.6)]"
+                                />
+                            </motion.div>
+                        </div>
+                    </div>
+                ) : (
                 <div className="relative z-10">
                     {/* Raised off the foot of the wall, which the audience's heads hide. */}
                     <LandingHero bottomClass="pb-[16vh]" dates={EVENT.days[welcomeDay] ?? EVENT.dates}
                         dateClass="text-[clamp(1.25rem,3vw,2.5rem)]"
                     />
                 </div>
+                )}
                 {/* The hashtag along the foot, as on every other screen. */}
                 <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center">
                     <HashtagMark />
@@ -1141,6 +1222,8 @@ function saveWelcomeDay(day) {
     }
     return day;
 }
+
+const isWelcomeStyle = (style) => style === 'landing' || style === 'cli';
 
 const sponsorsKey = (raffleId) => `natcon-sponsors-${raffleId}`;
 

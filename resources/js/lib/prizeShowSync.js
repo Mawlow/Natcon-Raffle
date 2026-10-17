@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { formatPrizeValue } from './format';
 
 /**
  * Keeps the Prize Display screen in step with its control page. The screen
@@ -32,3 +33,10 @@ export function usePrizeShowChanges(onChange) {
 
 /** The key the Prize Display's logo sizes are stored under (see lib/logoSizes). */
 export const PRIZE_SHOW_SIZES_KEY = 'prize-show';
+
+/** "₱50,000 Cash Prize" or "Brand New Car (worth ₱1,500,000)". */
+export function prizeSlideLine(slide) {
+    const value = formatPrizeValue(slide.prize_value, slide.prize_currency);
+    if (slide.prize_type === 'item') return value ? `${slide.prize_name} (worth ${value})` : slide.prize_name;
+    return value ? `${value} ${slide.prize_name}` : slide.prize_name;
+}

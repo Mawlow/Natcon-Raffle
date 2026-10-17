@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Archive, Copy, Folder, RotateCcw, Wand2, ExternalLink, FolderInput, MoreVertical, Pencil, Trash2, Users } from 'lucide-react';
+import { Archive, Copy, Crown, Folder, Lock, LockOpen, Play, RotateCcw, Wand2, ExternalLink, FolderInput, MoreVertical, Pencil, Trash2, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import StatusChip from '../ui/StatusChip';
 import { formatNumber, formatPrizeValue } from '../../lib/format';
 import { setLabel } from '../../lib/sets';
+import { isReplay } from './RedrawDialog';
 
-export default function RaffleCard({ raffle, files = null, selectable = false, selected = false, onToggleSelect = null, onDuplicate, onRedraw, onConvert = null, onMoveToFile, onArchive, onRestore, onDelete, delay = 0 }) {
+export default function RaffleCard({ raffle, files = null, selectable = false, selected = false, onToggleSelect = null, onDuplicate, onRedraw, onConvert = null, onKeep = null, onLock = null, onUnlock = null, onToggleOut = null, onMoveToFile, onArchive, onRestore, onDelete, delay = 0 }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -25,13 +26,21 @@ export default function RaffleCard({ raffle, files = null, selectable = false, s
     // A raffle with a prize list shows its first prize and how many more follow.
     const firstPrize = raffle.prizes?.[0];
     const firstValue = firstPrize && formatPrizeValue(firstPrize.prize_value, firstPrize.prize_currency);
+    // A pre-draw's prizes are on its pre-selected list, one per winner.
+    const stagedPrizes = [...new Set(raffle.staged_prizes ?? [])];
     const prizeText = raffle.prize_name
         ? `${prize ? `${prize} · ` : ''}${raffle.prize_name}`
         : firstPrize
             ? `${firstValue ? `${firstValue} · ` : ''}${firstPrize.prize_name}${raffle.prizes.length > 1 ? ` + ${raffle.prizes.length - 1} more` : ''}`
-            : 'Prize not set yet';
+            : stagedPrizes.length
+                ? `${stagedPrizes[0]}${stagedPrizes.length > 1 ? ` + ${stagedPrizes.length - 1} more` : ''}`
+                : 'Prize not set yet';
     const progress = raffle.winners_count > 0 ? (raffle.winners_drawn / raffle.winners_count) * 100 : 0;
     const isLive = raffle.status === 'LIVE';
+    // Locked: its winners cannot be changed, removed or deleted without the owner PIN.
+    const locked = Boolean(raffle.is_locked);
+    // A pre-draw with its winners chosen is played again, not redrawn.
+    const replay = isReplay(raffle);
 
     return (
         <motion.article
@@ -63,9 +72,15 @@ export default function RaffleCard({ raffle, files = null, selectable = false, s
                             <span className="chip border-gold/25 bg-gold/10 text-gold-bright"><Folder size={11} /> {setLabel(raffle.draw_set)}</span>
                         )}
                         {raffle.is_predraw && <span className="chip border-gold/25 bg-gold/10 text-gold-bright">Pre-draw</span>}
+                        {locked && (
+                            <span className="chip border-emerald-400/30 bg-emerald-500/10 text-emerald-300" title="Winners locked — the owner PIN unlocks them"><Lock size={11} /> Locked</span>
+                        )}
                         {raffle.is_archived && <span className="chip border-white/10 bg-white/5 text-muted-dim">Archived</span>}
                         {raffle.allow_repeat_winners && (
                             <span className="chip border-amber-400/25 bg-amber-400/10 text-amber-300">Repeats allowed</span>
+                        )}
+                        {raffle.winners_out_for_event && (
+                            <span className="chip border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200" title="Big prize: its winners are left out of every other draw of the event, all days"><Crown size={11} /> Winners out for the event</span>
                         )}
                     </div>
 
@@ -107,12 +122,12 @@ export default function RaffleCard({ raffle, files = null, selectable = false, s
                                 </button>
                             )}
                             <a
-                                href={`/raffle/${raffle.id}/display`}
-                                target="_blank"
+                                href={`/raffle/${raffle.id}/single`}
+                                target="natcon-main"
                                 rel="noreferrer"
                                 className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
                             >
-                                <ExternalLink size={14} /> Open display
+                                <ExternalLink size={14} /> Open main screen
                             </a>
 
                             {onConvert && !raffle.is_archived && !raffle.is_predraw && raffle.winners_drawn === 0 && (
@@ -125,13 +140,57 @@ export default function RaffleCard({ raffle, files = null, selectable = false, s
                                 </button>
                             )}
 
+                            {onToggleOut && !raffle.is_archived && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onToggleOut(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                    title={raffle.winners_out_for_event
+                                        ? 'Its winners can win other draws again, from the next day on'
+                                        : 'Big prize: whoever wins it is left out of every other draw of the event, all days'}
+                                >
+                                    <Crown size={14} /> {raffle.winners_out_for_event ? 'Winners back in for other days' : 'Big prize: winners sit out the event'}
+                                </button>
+                            )}
+
+                            {onKeep && !raffle.is_archived && !raffle.is_predraw && raffle.winners_drawn > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onKeep(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                    title="Its winners become a pre-selected list, locked, so it can be played again with the same winners"
+                                >
+                                    <Wand2 size={14} /> Keep winners as pre-draw
+                                </button>
+                            )}
+
                             {onRedraw && !raffle.is_archived && raffle.winners_drawn > 0 && (
                                 <button
                                     type="button"
                                     onClick={() => { setMenuOpen(false); onRedraw(raffle); }}
                                     className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
                                 >
-                                    <RotateCcw size={14} /> Clear winners &amp; redraw
+                                    {replay ? <><Play size={14} /> Play again (same winners)</> : <><RotateCcw size={14} /> Clear winners &amp; redraw</>}
+                                </button>
+                            )}
+
+                            {onLock && !locked && !raffle.is_archived && (raffle.winners_drawn > 0 || replay) && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onLock(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                    title="Nobody can change or remove its winners until it is unlocked with the owner PIN"
+                                >
+                                    <Lock size={14} /> Lock winners
+                                </button>
+                            )}
+                            {onUnlock && locked && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onUnlock(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                >
+                                    <LockOpen size={14} /> Unlock (owner PIN)
                                 </button>
                             )}
 
@@ -174,13 +233,19 @@ export default function RaffleCard({ raffle, files = null, selectable = false, s
                                 </button>
                             )}
 
-                            <button
-                                type="button"
-                                onClick={() => { setMenuOpen(false); onDelete?.(raffle); }}
-                                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-red-300/80 transition hover:bg-red-500/10 hover:text-red-300"
-                            >
-                                <Trash2 size={14} /> Delete raffle
-                            </button>
+                            {locked ? (
+                                <p className="flex items-center gap-2.5 px-3 py-2 text-xs text-muted-dim">
+                                    <Lock size={13} /> Locked — unlock to delete
+                                </p>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onDelete?.(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-red-300/80 transition hover:bg-red-500/10 hover:text-red-300"
+                                >
+                                    <Trash2 size={14} /> Delete raffle
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

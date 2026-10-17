@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Enums\DrawResult;
 use App\Enums\RaffleStatus;
 use App\Models\DrawEvent;
+use App\Enums\ParticipantStatus;
 use App\Models\Raffle;
+use App\Models\RaffleFile;
 use App\Services\RaffleDrawService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\RaffleTestHelpers;
@@ -158,15 +160,117 @@ class StagedWinnersTest extends TestCase
     public function test_someone_drawn_in_another_raffle_cannot_be_pre_selected(): void
     {
         $main = $this->raffleWithPool(1, ['winners_count' => 1]);
-        $predraw = $this->raffleWithPool(1);
+        $predraw = $this->raffleWithPool(2);
         app(RaffleDrawService::class)->draw($main);
 
         $this->stage($predraw, [
-            ['participant_id' => $predraw->participants()->first()->id, 'prize_name' => 'Phone'],
+            ['participant_id' => $predraw->participants()->where('ticket_number', '000001')->first()->id, 'prize_name' => 'Phone'],
         ])->assertStatus(422);
 
         $this->getJson("/api/raffles/{$predraw->id}/staged-winners")
             ->assertOk()
-            ->assertJsonPath('won_elsewhere.000001', $main->name);
+            ->assertJsonPath('won_elsewhere.000001', $main->name)
+            ->assertJsonPath('still_to_win', 1);
+    }
+
+    public function test_earlier_winners_can_be_pre_selected_once_everyone_still_to_win_is_listed(): void
+    {
+        // Four people; two won on Day 1. A Day 2 pre-draw lists the two still to win first.
+        $this->actingAs($this->admin());
+        $fileId = $this->postJson('/api/raffle-files', ['name' => 'NATCON'])->json('data.id');
+        $csv = \Illuminate\Http\UploadedFile::fake()->createWithContent('people.csv', "ticket_number,name\n001,A\n002,B\n003,C\n004,D\n");
+        $this->postJson("/api/raffle-files/{$fileId}/participants", ['file' => $csv])->assertCreated();
+        $make = fn (string $name, int $day, array $extra = []) => Raffle::find($this->postJson('/api/raffles', ['name' => $name, 'raffle_file_id' => $fileId, 'ready' => true, 'draw_day' => $day, 'winners_count' => 2] + $extra)->assertCreated()->json('data.id'));
+
+        $dayOne = $make('Day 1 draw', 1, ['prizes' => [['winners_count' => 2, 'prize_name' => 'P']]]);
+        $won = array_map(fn ($o) => $o->winner->ticket_number, app(RaffleDrawService::class)->drawAll($dayOne));
+        $predraw = Raffle::find($this->postJson("/api/raffle-files/{$fileId}/predraws", ['name' => 'Day 2 pre-draw', 'draw_day' => 2])->json('data.id'));
+        $person = fn (string $ticket) => $predraw->participants()->where('ticket_number', $ticket)->first()->id;
+        $fresh = array_values(array_diff(['001', '002', '003', '004'], $won));
+
+        // Two still to win: a Day 1 winner cannot be listed yet.
+        $this->getJson("/api/raffles/{$predraw->id}/staged-winners")->assertJsonPath('still_to_win', 2)->assertJsonPath("won_elsewhere.{$won[0]}", 'Day 1 draw');
+        $this->stage($predraw, [['participant_id' => $person($won[0]), 'prize_name' => 'Phone']])->assertStatus(422);
+
+        // Both still-to-win people listed: everyone is back in, so a Day 1 winner can be listed too.
+        $this->stage($predraw, [
+            ['participant_id' => $person($fresh[0]), 'prize_name' => 'Phone'],
+            ['participant_id' => $person($fresh[1]), 'prize_name' => 'Phone'],
+        ])->assertOk();
+        $this->getJson("/api/raffles/{$predraw->id}/staged-winners")->assertJsonPath('still_to_win', 0)->assertJsonMissingPath("won_elsewhere.{$won[0]}");
+        $this->stage($predraw, [
+            ['participant_id' => $person($fresh[0]), 'prize_name' => 'Phone'],
+            ['participant_id' => $person($fresh[1]), 'prize_name' => 'Phone'],
+            ['participant_id' => $person($won[0]), 'prize_name' => 'Phone'],
+        ])->assertOk();
+
+        // Day 2 set to everyone: Day 1 winners are pickable from the start, and no "still to win" count.
+        $this->stage($predraw, [])->assertOk();
+        $this->putJson("/api/raffle-files/{$fileId}/days/2", ['rule' => 'everyone'])->assertOk();
+        $this->getJson("/api/raffles/{$predraw->id}/staged-winners")->assertJsonPath('still_to_win', null)->assertJsonMissingPath("won_elsewhere.{$won[0]}");
+        $this->stage($predraw, [['participant_id' => $person($won[0]), 'prize_name' => 'Phone']])->assertOk();
+    }
+
+    public function test_a_winner_in_one_raffle_file_is_not_a_winner_in_another(): void
+    {
+        // Two raffle files — two events — whose tickets 000001–000003 are different people.
+        $cebu = RaffleFile::create(['name' => 'Cebu']);
+        $davao = RaffleFile::create(['name' => 'Davao']);
+        $staged = $this->raffleWithPool(3, ['winners_count' => 1, 'raffle_file_id' => $cebu->id]);
+        $sibling = $this->raffleWithPool(3, ['winners_count' => 1, 'raffle_file_id' => $cebu->id]);
+        $other = $this->raffleWithPool(3, ['winners_count' => 3, 'raffle_file_id' => $davao->id]);
+
+        $this->stage($staged, [
+            ['participant_id' => $staged->participants()->where('ticket_number', '000001')->value('id'), 'prize_name' => 'Car'],
+        ])->assertOk();
+
+        // Shown as a winner in the file's other raffle, not in the other file.
+        $this->assertSame(ParticipantStatus::Winner, $sibling->participants()->where('ticket_number', '000001')->first()->status);
+        $this->assertSame(ParticipantStatus::Active, $other->participants()->where('ticket_number', '000001')->first()->status);
+
+        // The other file can still draw ticket 000001, and pre-select it.
+        $draws = app(RaffleDrawService::class);
+        $this->assertSame(3, $draws->eligibleTicketCount($other));
+        $this->assertSame(2, $draws->eligibleTicketCount($sibling));
+        $this->assertSame([], $other->ticketsWonElsewhere());
+
+        $tickets = array_map(fn ($o) => $o->winner->ticket_number, $draws->drawAll($other));
+        sort($tickets);
+        $this->assertSame(['000001', '000002', '000003'], $tickets);
+
+        // Revealing the pre-selected winner marks the file's lists only.
+        $draws->draw($staged->refresh());
+        $this->assertSame(ParticipantStatus::Winner, $sibling->participants()->where('ticket_number', '000001')->first()->status);
+        $fresh = $this->raffleWithPool(3, ['raffle_file_id' => $davao->id]);
+        $this->assertSame(ParticipantStatus::Active, $fresh->participants()->where('ticket_number', '000001')->first()->status);
+    }
+
+    public function test_one_revealed_winner_can_be_taken_off_without_redrawing_the_rest(): void
+    {
+        [$raffle, $picked] = $this->stagedRaffle();
+        $draws = app(RaffleDrawService::class);
+        foreach ($picked as $_) {
+            $draws->draw($raffle->refresh());
+        }
+        $raffle->refresh();
+        $this->assertSame(RaffleStatus::Completed, $raffle->status);
+
+        // The second winner (the Phone) was listed by mistake.
+        $this->actingAs($this->admin())
+            ->deleteJson("/api/raffles/{$raffle->id}/winners/2")
+            ->assertOk()
+            ->assertJsonPath('data.winners_count', 2)
+            ->assertJsonPath('data.status', RaffleStatus::Completed->value);
+
+        $raffle->refresh();
+        $this->assertSame([$picked[0]->id, $picked[2]->id], array_column($raffle->stagedWinners(), 'participant_id'));
+        $this->assertSame([[1, $picked[0]->ticket_number], [2, $picked[2]->ticket_number]], $raffle->winners()->orderBy('position')->get()->map(fn ($w) => [(int) $w->position, $w->ticket_number])->all());
+        $this->assertSame(2, (int) $raffle->winners_count);
+        $this->assertSame(ParticipantStatus::Active, $picked[1]->refresh()->status);
+        $this->assertSame(ParticipantStatus::Winner, $picked[0]->refresh()->status);
+        $this->assertTrue(DrawEvent::query()->where('raffle_id', $raffle->id)->where('result', DrawResult::Redraw)->where('ticket_number', $picked[1]->ticket_number)->exists());
+
+        // A place that has not been revealed is not a winner yet.
+        $this->deleteJson("/api/raffles/{$raffle->id}/winners/3")->assertStatus(404);
     }
 }

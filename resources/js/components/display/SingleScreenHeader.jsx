@@ -11,7 +11,7 @@ import { CornerLogoRow } from './ShowcaseHeader';
  * logo with the company logos, the raffle title and the prize. `sizes` is the
  * operator's logo sizing from the Control Center (see lib/logoSizes).
  */
-export default function SingleScreenHeader({ raffle, sizes = { event: 1, company: 1 } }) {
+export default function SingleScreenHeader({ raffle, sizes = { event: 1, company: 1 }, title = true }) {
     const companies = raffle.logos ?? [];
     // With corner logos, the top is laid out as on the winners page — one
     // logo top left, NATCON in the middle, one top right — from Get Ready on.
@@ -35,7 +35,8 @@ export default function SingleScreenHeader({ raffle, sizes = { event: 1, company
                 <LogoStrip logos={companies} sizes={sizes} />
             )}
 
-            <motion.div
+            {/* The "Raffle Draw" ornament and the title; the Prize Display leaves them out. */}
+            {title && <motion.div
                 initial={{ opacity: 0, scaleX: 0.4 }}
                 animate={{ opacity: 1, scaleX: 1 }}
                 transition={{ duration: 1.1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
@@ -48,9 +49,9 @@ export default function SingleScreenHeader({ raffle, sizes = { event: 1, company
                     Raffle Draw
                 </span>
                 <Diamond />
-            </motion.div>
+            </motion.div>}
 
-            <motion.h1
+            {title && <motion.h1
                 initial={{ opacity: 0, y: 14, letterSpacing: '0.24em' }}
                 animate={{ opacity: 1, y: 0, letterSpacing: '0.1em' }}
                 transition={{ duration: 1.2, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -62,9 +63,10 @@ export default function SingleScreenHeader({ raffle, sizes = { event: 1, company
                 }}
             >
                 {DISPLAY_TITLE}
-            </motion.h1>
+            </motion.h1>}
 
-            {/* The prize in a glowing gold frame that breathes gently — once it is set. */}
+            {/* The prize in a glowing gold frame that breathes gently — once it is
+                set — with its photo beside it when one is saved (a brand new car). */}
             {raffle.prize_name && <motion.div
                 initial={{ opacity: 0, y: 8, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -79,9 +81,13 @@ export default function SingleScreenHeader({ raffle, sizes = { event: 1, company
                     className="pointer-events-none absolute -inset-3 rounded-full bg-[radial-gradient(closest-side,rgba(212,175,55,0.24),rgba(212,175,55,0.08)_60%,transparent)] [will-change:opacity]"
                 />
                 <div
-                    className="relative flex flex-wrap items-center justify-center gap-x-5 gap-y-1 rounded-full border border-gold/50 bg-gradient-to-b from-gold/[0.14] to-black/70 shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_10px_40px_-10px_rgba(212,175,55,0.55),inset_0_1px_0_rgba(255,244,201,0.25)]"
-                    style={{ paddingInline: `clamp(1.5rem,${vw(3.6)},3.5rem)`, paddingBlock: `clamp(0.45rem,${vh(1.4)},1rem)` }}
+                    className={`relative flex items-center justify-center gap-x-5 gap-y-1 border border-gold/50 bg-gradient-to-b from-gold/[0.14] to-black/70 shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_10px_40px_-10px_rgba(212,175,55,0.55),inset_0_1px_0_rgba(255,244,201,0.25)] ${raffle.prize_image ? 'flex-nowrap rounded-[2.5rem]' : 'flex-wrap rounded-full'}`}
+                    style={raffle.prize_image
+                        ? { paddingInline: `clamp(0.6rem,${vw(1.2)},1.2rem) clamp(1.5rem,${vw(3.6)},3.5rem)`, paddingBlock: `clamp(0.4rem,${vh(1)},0.8rem)`, columnGap: `clamp(0.9rem,${vw(2)},2rem)` }
+                        : { paddingInline: `clamp(1.5rem,${vw(3.6)},3.5rem)`, paddingBlock: `clamp(0.45rem,${vh(1.4)},1rem)` }}
                 >
+                    {raffle.prize_image && <PrizePhoto src={raffle.prize_image} alt={raffle.prize_name} />}
+                    <div className={raffle.prize_image ? 'flex min-w-0 flex-col items-start text-left' : 'contents'}>
                     {raffle.prize_type === 'item' ? (
                         <>
                             <p className="prize-gradient pl-[0.12em] font-lux font-bold uppercase leading-tight tracking-[0.12em]" style={{ fontSize: `clamp(1.7rem,min(${vw(4)},${vh(6.4)}),3.5rem)` }}>
@@ -99,9 +105,29 @@ export default function SingleScreenHeader({ raffle, sizes = { event: 1, company
                             {cashPrizeText(raffle.prize_value, raffle.prize_currency) ?? raffle.prize_name}
                         </p>
                     )}
+                    </div>
                 </div>
             </motion.div>}
         </div>
+    );
+}
+
+/**
+ * The prize's photo in a gold-edged tile with a soft glow, kept whole
+ * (never cropped) and sized to the screen, so a car is seen in full.
+ */
+export function PrizePhoto({ src, alt }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className="relative shrink-0 overflow-hidden rounded-[1.6rem] border border-gold/60 bg-black/60 shadow-[0_0_0_1px_rgba(212,175,55,0.25),0_14px_40px_-12px_rgba(0,0,0,0.9),0_0_30px_-6px_rgba(212,175,55,0.45)]"
+            style={{ height: `clamp(5rem,${vh(21)},13rem)`, aspectRatio: '16 / 10' }}
+        >
+            <img src={src} alt={alt} className="block h-full w-full object-contain" style={{ padding: `clamp(0.2rem,${vh(0.6)},0.45rem)` }} />
+            <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[1.6rem] bg-[linear-gradient(180deg,rgba(255,244,201,0.12),transparent_40%,transparent_75%,rgba(212,175,55,0.1))]" />
+        </motion.div>
     );
 }
 
@@ -128,14 +154,14 @@ export function LogoStrip({ logos: companies = [], sizes = { event: 1, company: 
                 />
             )}
             {companies.map((logo) => (
-                <LogoBox key={logo.id} src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} small={companies.length > 4} scale={sizes.company} />
+                <LogoBox key={logo.id} src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} outline={logo.outline} small={companies.length > 4} scale={sizes.company} />
             ))}
         </motion.div>
     );
 }
 
 /** The company logos alone, beneath the corner logos. */
-function CompanyRow({ logos, sizes }) {
+export function CompanyRow({ logos, sizes }) {
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.94 }}
@@ -145,7 +171,7 @@ function CompanyRow({ logos, sizes }) {
             style={{ maxWidth: vw(94), columnGap: `clamp(0.75rem,${vw(2)},2rem)` }}
         >
             {logos.map((logo) => (
-                <LogoBox key={logo.id} src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} small scale={sizes.company} />
+                <LogoBox key={logo.id} src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} outline={logo.outline} small scale={sizes.company} />
             ))}
         </motion.div>
     );
@@ -156,14 +182,14 @@ function CompanyRow({ logos, sizes }) {
  * the same space; the NATCON logo (`event`) is set larger, and larger still
  * when it stands alone (`solo`). `scale` is the operator's sizing on top.
  */
-function LogoBox({ src, alt, tone, stageSrc, event = false, solo = false, small = false, scale = 1 }) {
+function LogoBox({ src, alt, tone, stageSrc, outline = false, event = false, solo = false, small = false, scale = 1 }) {
     const height = event
         ? (solo ? `clamp(8.5rem,${vh(25)},15rem)` : `clamp(6.5rem,${vh(20)},12.5rem)`)
         : small ? `clamp(2.5rem,${vh(7)},4.5rem)` : `clamp(3.25rem,${vh(10)},6.5rem)`;
 
     return (
         <div className="grid shrink-0 place-items-center" style={{ height: `calc(${height} * ${scale})`, aspectRatio: '2.2 / 1', maxWidth: vw(94) }}>
-            <StageLogo src={src} alt={alt} tone={tone} stageSrc={stageSrc} measure={!event} />
+            <StageLogo src={src} alt={alt} tone={tone} stageSrc={stageSrc} outline={outline} measure={!event} />
         </div>
     );
 }

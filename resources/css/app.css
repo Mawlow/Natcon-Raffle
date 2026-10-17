@@ -87,6 +87,80 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* The prize on the Prize Display: floating gently over its glowing floor,
+   light rays turning slowly behind it. */
+@keyframes prize-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-1.6%); }
+}
+@keyframes prize-float-card {
+    0%, 100% { transform: perspective(1400px) rotateX(7deg) translateY(0); }
+    50% { transform: perspective(1400px) rotateX(7deg) translateY(-1.6%); }
+}
+@keyframes xmas-twinkle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+@keyframes xmas-snow {
+    0% { transform: translate3d(0, -5vh, 0); }
+    50% { transform: translate3d(var(--drift), 50vh, 0); }
+    100% { transform: translate3d(0, 105vh, 0); }
+}
+@keyframes sleigh-fly {
+    from { transform: translateX(-60vw); }
+    to { transform: translateX(110vw); }
+}
+@keyframes sleigh-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12%); }
+}
+@keyframes sleigh-twinkle {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 1; }
+}
+@keyframes cli-sway {
+    0%, 100% { transform: translateX(-1.2%) rotate(-1.5deg); }
+    50% { transform: translateX(1.2%) rotate(1.5deg); }
+}
+@keyframes prize-spin {
+    from { transform: rotateY(0deg); }
+    to { transform: rotateY(360deg); }
+}
+@keyframes prize-rays {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+@keyframes prize-floor {
+    0%, 100% { opacity: 0.75; transform: translate(-50%, -50%) scaleX(1); }
+    50% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.08); }
+}
+@keyframes prize-spot {
+    0%, 100% { opacity: 0.75; }
+    50% { opacity: 1; }
+}
+@keyframes prize-sheen {
+    0%, 55% { background-position: 120% 0; }
+    100% { background-position: -120% 0; }
+}
+@keyframes prize-glitter {
+    0%, 100% { opacity: 0; transform: scale(0.2) rotate(0deg); }
+    50% { opacity: 1; transform: scale(1) rotate(45deg); }
+}
+@keyframes prize-drift {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -2.5%; }
+}
+@keyframes prize-bokeh {
+    0% { opacity: 0; transform: translateY(0) scale(0.8); }
+    20% { opacity: 0.9; }
+    80% { opacity: 0.6; }
+    100% { opacity: 0; transform: translateY(-140%) scale(1.15); }
+}
+@keyframes prize-spark {
+    0%, 100% { opacity: 0; transform: scale(0.4) translateY(0); }
+    50% { opacity: 1; transform: scale(1) translateY(-6px); }
+}
+
 /* ------------------------------------------------------------------ *
  * Base
  * ------------------------------------------------------------------ */

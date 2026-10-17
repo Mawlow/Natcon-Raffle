@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, Gift, Loader2, Plus, Search, Trash2, Wand2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Gift, Loader2, Lock, Plus, Search, Trash2, Wand2, X } from 'lucide-react';
 import api, { parseError } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 
@@ -11,7 +11,8 @@ import { useToast } from '../../context/ToastContext';
  * draw lands on the next winner here. Every change is saved straight away;
  * emptying the list makes the raffle an ordinary random draw again.
  *
- * Winners already revealed stay where they are.
+ * Winners already revealed stay where they are — though one listed by
+ * mistake can be taken off on its own, without redrawing the rest.
  */
 export default memo(StagedWinnersPanel);
 
@@ -38,13 +39,21 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
     const [serverList, setServerList] = useState([]);
     // Who already won elsewhere: ticket number => where.
     const [wonElsewhere, setWonElsewhere] = useState({});
+    // How many have not won anything yet (picked first); null when the day puts everyone back in.
+    const [stillToWin, setStillToWin] = useState(null);
     const [rows, setRows] = useState([]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
     const revealed = raffle.winners?.length ?? 0;
-    const blockedByPrizes = (raffle.prizes?.length ?? 0) > 0;
+    // A pre-draw kept from a drawn raffle still has that raffle's prize list,
+    // for the record; its winners carry their prizes as text.
+    const blockedByPrizes = (raffle.prizes?.length ?? 0) > 0 && !raffle.is_predraw;
+    // Locked by the owner: the list stays as it is until unlocked with the PIN.
+    const ownerLocked = Boolean(raffle.is_locked);
     const [loaded, setLoaded] = useState(false);
     const [confirmClear, setConfirmClear] = useState(false);
+    // The revealed winner about to be taken off (their place, #1, #2, …), if any.
+    const [confirmRemove, setConfirmRemove] = useState(null);
 
     // Who is on the list is admin-only, so it is loaded here rather than
     // with the raffle (which comes from the screens' public feed). Loaded
@@ -55,6 +64,7 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
             .then(({ data }) => {
                 setServerList(data.data ?? []);
                 setWonElsewhere(data.won_elsewhere ?? {});
+                setStillToWin(data.still_to_win ?? null);
             })
             .catch(() => {})
             .finally(() => setLoaded(true))
@@ -106,6 +116,23 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
     };
     const removeGroup = (at) => persist(fromGroups(groups.filter((_, index) => index !== at)), 'Prize removed.');
     const removePerson = (index) => persist(rows.filter((_, at) => at !== index));
+
+    // A revealed winner comes off the list and out of the winners; the ones
+    // after them move up a place.
+    const removeRevealed = async (position) => {
+        setSaving(true);
+        setError(null);
+        try {
+            const { data } = await api.delete(`/raffles/${raffleId}/winners/${position}`);
+            setConfirmRemove(null);
+            await Promise.all([load(), onSaved()]);
+            toast.success(data.message ?? 'Winner removed.');
+        } catch (failure) {
+            setError(parseError(failure, 'The winner could not be removed.').message);
+        } finally {
+            setSaving(false);
+        }
+    };
     const addMany = (people, prize) => persist([
         ...rows,
         ...people.map((person) => ({
@@ -136,7 +163,7 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
         }
     };
 
-    const locked = midDraw || saving || blockedByPrizes || earlierWinners > 0;
+    const locked = midDraw || saving || blockedByPrizes || earlierWinners > 0 || ownerLocked;
     const listed = new Set(rows.map((row) => row.participant_id));
     // A prize group with a winner already revealed stays where it is.
     const isFixed = (group) => Boolean(group) && group.start < revealed;
@@ -150,7 +177,9 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
                         Pre-selected winners
                     </h2>
                     <p className="mt-0.5 text-xs text-muted">
-                        {blockedByPrizes
+                        {ownerLocked
+                            ? `Locked: these ${rows.length} winner${rows.length === 1 ? '' : 's'} stay exactly as they are. Playing the draw again reveals them in this order. Unlock with the owner PIN to change the list.`
+                            : blockedByPrizes
                             ? 'This raffle has a prize list. Remove it below to reveal winners chosen before the event.'
                             : rows.length
                                 ? `The draw reveals these ${rows.length} winner${rows.length === 1 ? '' : 's'} prize by prize, top to bottom — no random pick.`
@@ -159,6 +188,9 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
                     </p>
                 </div>
                 {saving && <Loader2 size={16} className="shrink-0 animate-spin text-gold" />}
+                {ownerLocked && !saving && (
+                    <span className="chip shrink-0 border-emerald-400/30 bg-emerald-500/10 text-emerald-300"><Lock size={11} /> Locked</span>
+                )}
             </div>
 
             {!blockedByPrizes && (
@@ -183,7 +215,7 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
                                                 <IconButton label="Move prize up" onClick={() => moveGroup(at, -1)} disabled={locked || fixed || at === 0 || isFixed(groups[at - 1])}><ArrowUp size={14} /></IconButton>
                                                 <IconButton label="Move prize down" onClick={() => moveGroup(at, 1)} disabled={locked || fixed || at === groups.length - 1}><ArrowDown size={14} /></IconButton>
                                                 <IconButton
-                                                    label={fixed ? 'Already revealed — use Redraw to start over' : 'Remove this prize and its winners'}
+                                                    label={fixed ? 'Already revealed — take winners off one by one, or use Redraw to start over' : 'Remove this prize and its winners'}
                                                     onClick={() => removeGroup(at)}
                                                     disabled={locked || fixed}
                                                     danger
@@ -196,6 +228,8 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
                                         <ul className="mt-3 flex flex-wrap gap-2">
                                             {group.rows.map((row) => {
                                                 const done = row.index < revealed;
+                                                const position = row.index + 1;
+                                                const asking = done && confirmRemove === position;
                                                 return (
                                                     <li
                                                         key={row.participant_id}
@@ -215,6 +249,38 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
                                                             >
                                                                 <X size={13} />
                                                             </button>
+                                                        )}
+                                                        {done && !asking && !ownerLocked && (
+                                                            <button
+                                                                type="button"
+                                                                className="rounded p-0.5 text-muted transition hover:text-red-300 disabled:opacity-35"
+                                                                onClick={() => setConfirmRemove(position)}
+                                                                disabled={midDraw || saving}
+                                                                aria-label={`Take ${row.name || 'this winner'} off the winners`}
+                                                                title="Take off the winners"
+                                                            >
+                                                                <X size={13} />
+                                                            </button>
+                                                        )}
+                                                        {asking && (
+                                                            <span className="flex items-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    className="rounded-md border border-red-400/40 bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25 disabled:opacity-50"
+                                                                    onClick={() => removeRevealed(position)}
+                                                                    disabled={midDraw || saving}
+                                                                >
+                                                                    Remove winner
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="rounded px-1.5 py-0.5 text-xs text-muted transition hover:text-white"
+                                                                    onClick={() => setConfirmRemove(null)}
+                                                                    disabled={saving}
+                                                                >
+                                                                    Keep
+                                                                </button>
+                                                            </span>
                                                         )}
                                                     </li>
                                                 );
@@ -252,8 +318,20 @@ function StagedWinnersPanel({ raffle, raffleId, midDraw, onSaved }) {
                                 )}
                             </div>
                         </div>
-                    ) : (
-                        <AddWinners raffleId={raffleId} listed={listed} wonElsewhere={wonElsewhere} disabled={locked} onAdd={addMany} />
+                    ) : !ownerLocked && (
+                        <>
+                            {/* Who comes first: the people still to win anything in the event. */}
+                            {loaded && (
+                                <p className={`mt-4 rounded-lg border px-4 py-2.5 text-xs ${stillToWin === 0 ? 'border-line bg-black/20 text-muted' : stillToWin === null ? 'border-line bg-black/20 text-muted' : 'border-gold/35 bg-gold/[0.06] text-gold-bright'}`}>
+                                    {stillToWin === null
+                                        ? 'This day draws from everyone: earlier winners can be listed too.'
+                                        : stillToWin === 0
+                                            ? 'Everyone still to win is on a list now, so earlier winners can be listed too. Big-prize winners stay out.'
+                                            : `${stillToWin} ${stillToWin === 1 ? 'person has' : 'people have'} not won anything yet: they are listed first. Earlier winners can be listed once all ${stillToWin} are on a list.`}
+                                </p>
+                            )}
+                            <AddWinners raffleId={raffleId} listed={listed} wonElsewhere={wonElsewhere} disabled={locked} onAdd={addMany} />
+                        </>
                     )}
                 </>
             )}

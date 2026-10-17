@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ParticipantStatus;
+use App\Enums\RaffleStatus;
 use App\Models\Participant;
 use App\Models\Raffle;
 use App\Services\RaffleDrawService;
@@ -131,5 +133,33 @@ class RedrawTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(2, $raffle->winners()->count());
+    }
+
+    public function test_one_winner_can_be_replaced_without_redrawing_the_rest(): void
+    {
+        // Ten winners drawn; the second turns out to be invalid.
+        $raffle = $this->drawnRaffle(12, 10);
+        $this->assertSame(RaffleStatus::Completed, $raffle->refresh()->status);
+        $before = $raffle->winners()->orderBy('position')->pluck('ticket_number')->all();
+        $invalid = $before[1];
+
+        $this->actingAs($this->admin())
+            ->deleteJson("/api/raffles/{$raffle->id}/winners/2")
+            ->assertOk()
+            ->assertJsonPath('data.winners_count', 10)
+            ->assertJsonPath('data.status', RaffleStatus::Live->value);
+
+        $raffle->refresh();
+        $this->assertSame(9, $raffle->winners()->count());
+        $this->assertSame(range(1, 9), $raffle->winners()->orderBy('position')->pluck('position')->map(fn ($p) => (int) $p)->all());
+        $this->assertSame(array_values(array_diff($before, [$invalid])), $raffle->winners()->orderBy('position')->pluck('ticket_number')->all());
+        $this->assertSame(ParticipantStatus::Excluded, Participant::query()->where('raffle_id', $raffle->id)->where('ticket_number', $invalid)->sole()->status);
+
+        // The next draw fills the open place with someone new: ten winners again.
+        $replacement = app(RaffleDrawService::class)->draw($raffle)->winner;
+        $this->assertSame(10, (int) $replacement->position);
+        $this->assertNotContains($replacement->ticket_number, $before);
+        $this->assertSame(RaffleStatus::Completed, $raffle->refresh()->status);
+        $this->assertSame(10, $raffle->winners()->count());
     }
 }

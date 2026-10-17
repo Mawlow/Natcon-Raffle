@@ -36,11 +36,13 @@ class RafflePrizeController extends Controller
             'prizes.*.prize_value' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
             'prizes.*.prize_currency' => ['nullable', 'string', 'max:8'],
             'prizes.*.draw_filter' => ['nullable', 'array'],
-            'prizes.*.draw_filter.type' => ['nullable', Rule::in(['all', 'tag', 'developer', 'both'])],
+            'prizes.*.draw_filter.type' => ['nullable', Rule::in(['all', 'tag', 'developer', 'location', 'both'])],
             'prizes.*.draw_filter.tags' => ['nullable', 'array', 'max:100'],
             'prizes.*.draw_filter.tags.*' => ['string', 'max:160'],
             'prizes.*.draw_filter.developers' => ['nullable', 'array', 'max:100'],
             'prizes.*.draw_filter.developers.*' => ['string', 'max:160'],
+            'prizes.*.draw_filter.locations' => ['nullable', 'array', 'max:100'],
+            'prizes.*.draw_filter.locations.*' => ['string', 'max:160'],
             'prizes.*.draw_filter.values' => ['nullable', 'array', 'max:100'],
             'prizes.*.draw_filter.values.*' => ['string', 'max:160'],
             'prizes.*.include_previous_winners' => ['boolean'],
@@ -82,6 +84,10 @@ class RafflePrizeController extends Controller
 
         if ($total > self::MAX_WINNERS) {
             return response()->json(['message' => 'A raffle can have at most '.self::MAX_WINNERS.' winners across all its prizes.'], 422);
+        }
+
+        if ($raffle->isLocked()) {
+            return $this->lockedResponse($raffle, 'its prizes cannot be changed');
         }
 
         if ($rows !== [] && $raffle->hasStagedWinners()) {

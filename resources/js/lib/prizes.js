@@ -100,17 +100,36 @@ export function prizeOnStage(raffle, phase, winners = []) {
     return nextPrize(raffle, winners) ?? won ?? raffle.prizes[raffle.prizes.length - 1];
 }
 
-/** The raffle with its headline prize swapped for the one on stage. */
+/** The photo saved for a prize name, if any (`raffle.prize_images`: name => URL). */
+export const prizeImageFor = (raffle, name) => (name && raffle?.prize_images?.[name]) || null;
+
+/**
+ * The raffle with its headline prize swapped for the one on stage, and that
+ * prize's photo as `prize_image` (null when it has none).
+ */
 export function withPrizeOnStage(raffle, phase, winners) {
     const prize = prizeOnStage(raffle, phase, winners);
-    if (!prize) return raffle;
+    if (!prize) return { ...raffle, prize_image: prizeImageFor(raffle, raffle.prize_name) };
     return {
         ...raffle,
         prize_name: prize.prize_name,
         prize_type: prize.prize_type,
         prize_value: prize.prize_value,
         prize_currency: prize.prize_currency,
+        prize_image: prizeImageFor(raffle, prize.prize_name),
     };
+}
+
+/**
+ * Every prize name a raffle shows on the screens — its own prize, each prize
+ * of its prize list, or each prize of its pre-selected list — for choosing a
+ * photo per prize.
+ */
+export function prizeNames(raffle) {
+    if (!raffle) return [];
+    if (hasStagedPrizes(raffle)) return [...new Set(raffle.staged_prizes)];
+    if (hasPrizes(raffle)) return [...new Set(raffle.prizes.map((prize) => prize.prize_name))];
+    return raffle.prize_name ? [raffle.prize_name] : [];
 }
 
 /**

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, EyeOff, MonitorPlay, Pencil, Plus, RotateCcw, Trash2, Tv, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Camera, ChevronDown, EyeOff, MonitorPlay, Pencil, Plus, RotateCcw, Trash2, Tv, X } from 'lucide-react';
 import api, { parseError } from '../../lib/api';
-import { formatPrizeValue } from '../../lib/format';
 import { DEFAULT_LOGO_SIZES, loadLogoSizes, saveLogoSizes } from '../../lib/logoSizes';
-import { PRIZE_SHOW_SIZES_KEY, notifyPrizeShow } from '../../lib/prizeShowSync';
+import { PRIZE_SHOW_SIZES_KEY, notifyPrizeShow, prizeSlideLine } from '../../lib/prizeShowSync';
 import LogoPicker from '../raffle/LogoPicker';
+import CornerLogoPicker from '../raffle/CornerLogoPicker';
 import { SizeSlider } from '../raffle/LogoSizePanel';
 import { AmountInput, PRIZE_TYPES } from '../raffle/RaffleForm';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -19,17 +19,15 @@ const BLANK = {
     prize_value: '',
     prize_currency: 'PHP',
     logos: [],
+    logo_left: null,
+    logo_right: null,
+    spin: false,
 };
 
 // Kept fresh, so a prize added in one window shows up in the others.
 const REFRESH_MS = 10000;
 
-/** "₱50,000 Cash Prize" or "Brand New Car (worth ₱1,500,000)". */
-export function prizeLine(slide) {
-    const value = formatPrizeValue(slide.prize_value, slide.prize_currency);
-    if (slide.prize_type === 'item') return value ? `${slide.prize_name} (worth ${value})` : slide.prize_name;
-    return value ? `${value} ${slide.prize_name}` : slide.prize_name;
-}
+export const prizeLine = prizeSlideLine;
 
 /**
  * Everything for the Prize Display — the screen for raffles drawn by hand,
@@ -101,6 +99,9 @@ export default function PrizeManager({ variant = 'page', onLive, showDisabled = 
             prize_value: slide.prize_value ?? '',
             prize_currency: slide.prize_currency ?? 'PHP',
             logos: (slide.logos ?? []).map((logo) => logo.id),
+            logo_left: slide.logo_left?.id ?? null,
+            logo_right: slide.logo_right?.id ?? null,
+            spin: Boolean(slide.spin),
         });
         setFormOpen(true);
         if (!panel) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -161,6 +162,38 @@ export default function PrizeManager({ variant = 'page', onLive, showDisabled = 
         }
     };
 
+    // A photo of the prize, saved and removed on the spot.
+    const [photoBusy, setPhotoBusy] = useState(null);
+    const uploadPhoto = async (slide, file) => {
+        if (!file) return;
+        setPhotoBusy(slide.id);
+        const body = new FormData();
+        body.append('image', file);
+        try {
+            await api.post(`/prize-slides/${slide.id}/image`, body);
+            await load();
+            notifyPrizeShow();
+            toast.success(`Photo saved for ${slide.prize_name}.`);
+        } catch (error) {
+            toast.error(parseError(error, 'The photo could not be saved.').message);
+        } finally {
+            setPhotoBusy(null);
+        }
+    };
+    const removePhoto = async (slide) => {
+        setPhotoBusy(slide.id);
+        try {
+            await api.delete(`/prize-slides/${slide.id}/image`);
+            await load();
+            notifyPrizeShow();
+            toast.success(`Photo removed from ${slide.prize_name}.`);
+        } catch (error) {
+            toast.error(parseError(error, 'The photo could not be removed.').message);
+        } finally {
+            setPhotoBusy(null);
+        }
+    };
+
     const remove = async () => {
         try {
             await api.delete(`/prize-slides/${deleting.id}`);
@@ -197,6 +230,9 @@ export default function PrizeManager({ variant = 'page', onLive, showDisabled = 
             onDelete={setDeleting}
             editingId={editingId}
             compact={panel}
+            photoBusy={photoBusy}
+            onPhoto={uploadPhoto}
+            onRemovePhoto={removePhoto}
         />
     );
 
@@ -261,6 +297,7 @@ export default function PrizeManager({ variant = 'page', onLive, showDisabled = 
             <section className="panel panel-gold p-5">
                 <LiveLine live={live} busy={busyId === 'blank'} onBlank={blank} />
             </section>
+
 
             <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
                 <div className="space-y-5">
@@ -420,6 +457,44 @@ function PrizeForm({ form, set, errors, saving, editing, showDisabled, onSave, o
             </div>
 
             <div>
+                <p className="label">Top-left and top-right logos <span className="text-xs font-normal text-muted-dim">(optional)</span></p>
+                <p className="mb-3 text-xs text-muted">One logo in each top corner, either side of the NATCON logo, as on a raffle's screens. Their size and margin are saved for the Prize Display.</p>
+                <CornerSizes>
+                    {(sizes, resize) => (
+                        <CornerLogoPicker
+                            value={{ left: form.logo_left, right: form.logo_right }}
+                            onChange={(side, id) => set(`logo_${side}`, id)}
+                            errors={{ logo_left: fieldError('logo_left'), logo_right: fieldError('logo_right') }}
+                            sizes={sizes}
+                            onSizeChange={resize}
+                            companyIds={form.logos}
+                        />
+                    )}
+                </CornerSizes>
+            </div>
+
+            {/* The photo turning on a turntable, for this prize only. */}
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-black/30 px-4 py-3 transition hover:border-gold/30">
+                <input
+                    id={id('spin')}
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={Boolean(form.spin)}
+                    onChange={(event) => set('spin', event.target.checked)}
+                />
+                <span
+                    className={`relative h-6 w-11 shrink-0 rounded-full border transition peer-focus-visible:ring-2 peer-focus-visible:ring-gold/50 ${form.spin ? 'border-gold bg-gold/80' : 'border-line bg-white/10'}`}
+                    aria-hidden="true"
+                >
+                    <span className={`absolute top-0.5 size-[18px] rounded-full bg-white shadow transition-all ${form.spin ? 'left-[22px]' : 'left-0.5'}`} />
+                </span>
+                <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-white">Spinning photo</span>
+                    <span className="block text-xs text-muted">The prize's photo turns round and round on the Prize Display, like a product on a turntable. Just this prize.</span>
+                </span>
+            </label>
+
+            <div>
                 <p className="label">Company logos <span className="text-xs font-normal text-muted-dim">(optional)</span></p>
                 <LogoPicker
                     value={form.logos}
@@ -447,7 +522,7 @@ function PrizeForm({ form, set, errors, saving, editing, showDisabled, onSave, o
     );
 }
 
-function PrizeList({ slides, busyId, showDisabled, onShow, onEdit, onDelete, editingId, compact }) {
+function PrizeList({ slides, busyId, showDisabled, onShow, onEdit, onDelete, editingId, compact, photoBusy = null, onPhoto, onRemovePhoto }) {
     if (slides === null) return <LoadingState />;
 
     if (slides.length === 0) {
@@ -467,6 +542,7 @@ function PrizeList({ slides, busyId, showDisabled, onShow, onEdit, onDelete, edi
                         slide.is_live ? 'border-gold/60 bg-gold/[0.07]' : editingId === slide.id ? 'border-gold/30 bg-black/30' : 'border-line bg-black/30'
                     }`}
                 >
+                    <PhotoButton slide={slide} busy={photoBusy === slide.id} compact={compact} onPhoto={(file) => onPhoto?.(slide, file)} onRemove={() => onRemovePhoto?.(slide)} />
                     <div className="min-w-0 flex-1">
                         {slide.title && <p className="truncate text-[0.7rem] text-muted">{slide.title}</p>}
                         <p className={`truncate font-display font-extrabold text-white ${compact ? 'text-sm' : 'text-base'}`}>{prizeLine(slide)}</p>
@@ -507,6 +583,54 @@ function PrizeList({ slides, busyId, showDisabled, onShow, onEdit, onDelete, edi
     );
 }
 
+/**
+ * The prize's photo — shown large on the screen — as a thumbnail with a way
+ * to add, change or remove it. JPG, PNG or WebP up to 8 MB.
+ */
+function PhotoButton({ slide, busy, compact, onPhoto, onRemove }) {
+    const input = useRef(null);
+    return (
+        <div className="flex shrink-0 flex-col items-center gap-1">
+            <input
+                ref={input}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => { onPhoto(event.target.files?.[0]); event.target.value = ''; }}
+            />
+            <button
+                type="button"
+                className={`grid place-items-center overflow-hidden rounded-lg border bg-black/60 transition hover:border-gold/60 disabled:opacity-50 ${compact ? 'h-12 w-[4.5rem]' : 'h-16 w-24'} ${slide.image ? 'border-gold/40' : 'border-dashed border-line'}`}
+                onClick={() => input.current?.click()}
+                disabled={busy}
+                title={slide.image ? 'Change the prize photo' : 'Add a photo of the prize — shown large on the screen'}
+                aria-label={slide.image ? `Change the photo of ${slide.prize_name}` : `Add a photo of ${slide.prize_name}`}
+            >
+                {busy
+                    ? <InlineSpinner />
+                    : slide.image
+                        ? <img src={slide.image} alt={slide.prize_name} className="h-full w-full object-contain p-0.5" />
+                        : <Camera size={compact ? 14 : 18} className="text-muted-dim" />}
+            </button>
+            {slide.image && !busy && (
+                <button type="button" className="text-[0.65rem] text-muted-dim hover:text-red-300" onClick={onRemove}>
+                    Remove photo
+                </button>
+            )}
+        </div>
+    );
+}
+
+/** The corner logos' sizes and margins for the Prize Display, saved as they move; the screen follows at once. */
+function CornerSizes({ children }) {
+    const [sizes, setSizes] = useState(() => loadLogoSizes(PRIZE_SHOW_SIZES_KEY));
+    const resize = (key, value) => {
+        saveLogoSizes(PRIZE_SHOW_SIZES_KEY, { ...loadLogoSizes(PRIZE_SHOW_SIZES_KEY), [key]: value });
+        setSizes(loadLogoSizes(PRIZE_SHOW_SIZES_KEY));
+    };
+    return children(sizes, resize);
+}
+
 /** NATCON and company logo sizes for the Prize Display, saved as they move. */
 function SizeControls() {
     const [sizes, setSizes] = useState(() => loadLogoSizes(PRIZE_SHOW_SIZES_KEY));
@@ -521,10 +645,11 @@ function SizeControls() {
         setSizes({ ...DEFAULT_LOGO_SIZES });
     };
 
-    const isDefault = sizes.event === DEFAULT_LOGO_SIZES.event && sizes.company === DEFAULT_LOGO_SIZES.company;
+    const isDefault = sizes.event === DEFAULT_LOGO_SIZES.event && sizes.company === DEFAULT_LOGO_SIZES.company && (sizes.prize ?? DEFAULT_LOGO_SIZES.prize) === DEFAULT_LOGO_SIZES.prize;
 
     return (
         <div className="space-y-5">
+            <SizeSlider label="Prize photo" value={sizes.prize ?? DEFAULT_LOGO_SIZES.prize} onChange={(value) => change('prize', value)} max={100} hint="100% fills the room between the title and the prize, never over the title." />
             <SizeSlider label="NATCON logo" value={sizes.event} onChange={(value) => change('event', value)} />
             <SizeSlider label="Company logos" value={sizes.company} onChange={(value) => change('company', value)} />
             <div className="flex justify-end">

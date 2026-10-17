@@ -19,6 +19,15 @@ class ReportTest extends TestCase
         app(RaffleDrawService::class)->draw($raffle);
         $predrawId = $this->actingAs($this->admin())->postJson("/api/raffles/{$raffle->id}/predraws", ['name' => 'Motor Draw'])->json('data.id');
 
+        // Only played raffles are reported: the pre-draw is not, until its winner is revealed.
+        $reports = collect($this->getJson('/api/reports')->assertOk()->json('data'))->keyBy('id');
+        $this->assertFalse($reports->has($predrawId));
+
+        $predraw = Raffle::find($predrawId);
+        $this->putJson("/api/raffles/{$predrawId}/staged-winners", ['winners' => [
+            ['participant_id' => $predraw->participants()->where('status', 'ACTIVE')->first()->id, 'prize_name' => 'Motor'],
+        ]])->assertOk();
+        app(RaffleDrawService::class)->draw($predraw->refresh());
         $reports = collect($this->getJson('/api/reports')->assertOk()->json('data'))->keyBy('id');
 
         $this->assertSame('Pre-draw', $reports[$predrawId]['type']);

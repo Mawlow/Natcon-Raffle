@@ -116,7 +116,7 @@ function CornerLogo({ logo, height, scale, index }) {
             className="grid min-w-0 place-items-center"
             style={{ width: `calc(${height} * 2.2 * ${scale})`, maxWidth: '100%', aspectRatio: '2.2 / 1' }}
         >
-            <StageLogo src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} measure />
+            <StageLogo src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} outline={logo.outline} measure />
         </motion.div>
     );
 }
@@ -130,7 +130,7 @@ function Logo({ logo, height, scale = 1, maxWidth = vw(40), index }) {
             className="grid min-w-0 shrink place-items-center"
             style={{ height: `calc(${height} * ${scale})`, aspectRatio: '2.2 / 1', maxWidth }}
         >
-            <StageLogo src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} measure={!logo.event} />
+            <StageLogo src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} outline={logo.outline} measure={!logo.event} />
         </motion.div>
     );
 }

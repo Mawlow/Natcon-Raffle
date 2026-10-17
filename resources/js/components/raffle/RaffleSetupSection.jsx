@@ -64,7 +64,7 @@ export default function RaffleSetupSection({ raffle, mode = 'current', onDone })
         let live = true;
         const timer = setTimeout(() => {
             api.get(`/raffles/${raffle.id}/participants/pool-count`, {
-                params: { type: pool?.type, values: pool?.values, tags: pool?.tags, developers: pool?.developers, leave_out: !next || leaveOut ? 1 : 0 },
+                params: { type: pool?.type, values: pool?.values, tags: pool?.tags, developers: pool?.developers, locations: pool?.locations, leave_out: !next || leaveOut ? 1 : 0 },
             })
                 .then(({ data }) => { if (live) setCount(data.data.count); })
                 .catch(() => { if (live) setCount(null); });

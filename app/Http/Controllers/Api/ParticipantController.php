@@ -39,6 +39,7 @@ class ParticipantController extends Controller
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
             ->when($request->filled('category'), fn ($q) => $q->where('category', $request->string('category')->toString()))
             ->when($request->filled('developer'), fn ($q) => $q->whereJsonContains('developers', $request->string('developer')->toString()))
+            ->when($request->filled('location'), fn ($q) => $q->where('location', $request->string('location')->toString()))
             ->orderBy($this->sortColumn($request), $request->string('direction')->toString() === 'desc' ? 'desc' : 'asc')
             ->paginate($perPage)
             ->withQueryString();
@@ -68,6 +69,12 @@ class ParticipantController extends Controller
                     ->unique()
                     ->sort()
                     ->values(),
+                'locations' => $raffle->participants()
+                    ->whereNotNull('location')
+                    ->distinct()
+                    ->orderBy('location')
+                    ->limit(100)
+                    ->pluck('location'),
             ],
         ]);
     }
@@ -121,6 +128,10 @@ class ParticipantController extends Controller
         $this->authorize('delete', $participant);
         $this->assertBelongsTo($raffle, $participant);
 
+        if ($raffle->isLocked()) {
+            return $this->lockedResponse($raffle, 'its participants cannot be deleted');
+        }
+
         if ($participant->winners()->exists()) {
             return response()->json([
                 'message' => 'This participant has won a raffle and cannot be deleted. Disqualify them instead.',
@@ -136,6 +147,10 @@ class ParticipantController extends Controller
     public function clear(Raffle $raffle): JsonResponse
     {
         $this->authorize('update', $raffle);
+
+        if ($raffle->isLocked()) {
+            return $this->lockedResponse($raffle, 'its participants cannot be cleared');
+        }
 
         if ($raffle->winners()->exists()) {
             return response()->json([
@@ -205,13 +220,14 @@ class ParticipantController extends Controller
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
             ->when($request->filled('category'), fn ($q) => $q->where('category', $request->string('category')->toString()))
             ->when($request->filled('developer'), fn ($q) => $q->whereJsonContains('developers', $request->string('developer')->toString()))
+            ->when($request->filled('location'), fn ($q) => $q->where('location', $request->string('location')->toString()))
             ->orderBy('ticket_number');
 
         $filename = $raffle->slug.'-participants-'.now()->format('Y-m-d-His').'.csv';
 
         return response()->streamDownload(function () use ($query) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['ticket_number', 'name', 'email', 'phone', 'tag', 'developers', 'status']);
+            fputcsv($handle, ['ticket_number', 'name', 'email', 'phone', 'tag', 'developers', 'location', 'status']);
 
             $query->chunkById(1000, function ($chunk) use ($handle) {
                 foreach ($chunk as $participant) {
@@ -223,6 +239,7 @@ class ParticipantController extends Controller
                         $participant->phone,
                         $participant->category,
                         implode(' | ', (array) $participant->developers),
+                        $participant->location,
                         $participant->status->value,
                     ]);
                 }
@@ -247,7 +264,7 @@ class ParticipantController extends Controller
 
     /**
      * How many of this raffle's participants could win a next round drawn
-     * from the given tags or developers — leaving out anyone who already won
+     * from the given tags, developers or locations — leaving out anyone who already won
      * (or sat this one out), unless `leave_out` is off. Disqualified and absent never count.
      */
     public function poolCount(Request $request, Raffle $raffle): JsonResponse
@@ -255,13 +272,15 @@ class ParticipantController extends Controller
         $this->authorize('viewAny', Participant::class);
 
         $validated = $request->validate([
-            'type' => ['nullable', 'in:all,tag,developer,both'],
+            'type' => ['nullable', 'in:all,tag,developer,location,both'],
             'values' => ['nullable', 'array', 'max:100'],
             'values.*' => ['string', 'max:160'],
             'tags' => ['nullable', 'array', 'max:100'],
             'tags.*' => ['string', 'max:160'],
             'developers' => ['nullable', 'array', 'max:100'],
             'developers.*' => ['string', 'max:160'],
+            'locations' => ['nullable', 'array', 'max:100'],
+            'locations.*' => ['string', 'max:160'],
             'leave_out' => ['nullable', 'boolean'],
         ]);
         $pool = Raffle::normalisePool([
@@ -269,6 +288,7 @@ class ParticipantController extends Controller
             'values' => $validated['values'] ?? [],
             'tags' => $validated['tags'] ?? [],
             'developers' => $validated['developers'] ?? [],
+            'locations' => $validated['locations'] ?? [],
         ]);
 
         $count = Raffle::applyPool($raffle->participants()->getQuery(), $pool)
@@ -276,14 +296,18 @@ class ParticipantController extends Controller
             ->when($request->boolean('leave_out', true), fn ($q) => $q
                 ->whereNotIn('status', [ParticipantStatus::Winner->value, ParticipantStatus::Excluded->value])
                 ->whereNotIn('ticket_number', $raffle->winners()->select('ticket_number')))
-            // Pre-selected winners of any raffle never win another draw.
-            ->whereNotIn('ticket_number', Raffle::stagedTickets())
+            // Anyone who won in another raffle of the file — drawn there, or
+            // on its pre-selected list — never wins another draw in it.
+            // — unless the day puts its winners back in play; the big-prize winners stay out either way.
+            ->whereNotIn('ticket_number', $raffle->dayWinnersBackIn()
+                ? $raffle->ticketsKeptOut()
+                : array_unique(array_merge($raffle->stagedTicketsAround(), $raffle->ticketsWonAround())))
             ->count();
 
         return response()->json(['data' => ['count' => $count]]);
     }
 
-    /** The tags and developers a raffle can be drawn from, with their ticket counts. */
+    /** The tags, developers and locations a raffle can be drawn from, with their ticket counts. */
     public function groups(Raffle $raffle, RaffleDrawService $draws): JsonResponse
     {
         $this->authorize('viewAny', Participant::class);
@@ -299,7 +323,7 @@ class ParticipantController extends Controller
 
     protected function sortColumn(Request $request): string
     {
-        $allowed = ['ticket_number', 'name', 'email', 'category', 'status', 'created_at'];
+        $allowed = ['ticket_number', 'name', 'email', 'category', 'location', 'status', 'created_at'];
         $sort = $request->string('sort')->toString();
 
         return in_array($sort, $allowed, true) ? $sort : 'ticket_number';

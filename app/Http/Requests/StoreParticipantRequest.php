@@ -37,6 +37,8 @@ class StoreParticipantRequest extends FormRequest
             // The developers a participant qualified under, for drawing by developer.
             'developers' => ['nullable', 'array', 'max:50'],
             'developers.*' => ['string', 'max:160', 'distinct'],
+            // Where the participant is from, for drawing by location ("Cebu").
+            'location' => ['nullable', 'string', 'max:120'],
             'status' => ['nullable', Rule::in(ParticipantStatus::values())],
             'metadata' => ['nullable', 'array'],
         ];

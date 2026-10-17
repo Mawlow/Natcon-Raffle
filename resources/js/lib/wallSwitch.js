@@ -50,7 +50,7 @@ export function useWallSwitch(path, raffleId) {
     useEffect(() => {
         if (typeof BroadcastChannel === 'undefined' || (path !== 'single' && path !== 'display')) return undefined;
         const channel = new BroadcastChannel(CHANNEL);
-        const announce = () => channel.postMessage({ type: 'on-wall', raffleId: String(raffleId) });
+        const announce = () => channel.postMessage({ type: 'on-wall', raffleId: String(raffleId), setup: SETUP_OF[path] });
         announce();
         const timer = setInterval(announce, ON_WALL_MS);
         channel.onmessage = (event) => {
@@ -82,21 +82,40 @@ export function useWallSwitch(path, raffleId) {
 
 /**
  * The raffle the main screen is showing right now, as its id, or null when
- * no main screen is open.
+ * no main screen is open. With several main screens open (a second window
+ * left behind, or both setups' screens), the one of this Control Center's
+ * own setup wins, then the one showing this raffle — and the answer only
+ * changes when a screen comes or goes, so the Logos tab never flips
+ * between two windows.
  */
-export function useWallRaffle() {
-    const [onWall, setOnWall] = useState(null);
+export function useWallRaffle({ raffleId = null, setup = null } = {}) {
+    // Every main screen heard from: key → { raffleId, setup, at }.
+    const [screens, setScreens] = useState({});
 
     useEffect(() => {
         if (typeof BroadcastChannel === 'undefined') return undefined;
         const channel = new BroadcastChannel(CHANNEL);
         channel.onmessage = (event) => {
-            if (event.data?.type === 'on-wall') setOnWall({ raffleId: event.data.raffleId, at: Date.now() });
+            if (event.data?.type !== 'on-wall') return;
+            const key = `${event.data.setup ?? 'any'}/${event.data.raffleId}`;
+            setScreens((current) => {
+                const known = current[key];
+                // Still the same screen: only its clock moves, nothing re-renders.
+                if (known) {
+                    known.at = Date.now();
+                    return current;
+                }
+                return { ...current, [key]: { raffleId: event.data.raffleId, setup: event.data.setup ?? null, at: Date.now() } };
+            });
         };
         channel.postMessage({ type: 'who-is-on-wall' });
         // Forget a screen that has gone quiet.
         const timer = setInterval(() => {
-            setOnWall((current) => (current && Date.now() - current.at > ON_WALL_TIMEOUT_MS ? null : current));
+            setScreens((current) => {
+                const cutoff = Date.now() - ON_WALL_TIMEOUT_MS;
+                const alive = Object.entries(current).filter(([, screen]) => screen.at >= cutoff);
+                return alive.length === Object.keys(current).length ? current : Object.fromEntries(alive);
+            });
         }, ON_WALL_MS);
         return () => {
             clearInterval(timer);
@@ -104,5 +123,10 @@ export function useWallRaffle() {
         };
     }, []);
 
-    return onWall?.raffleId ?? null;
+    const list = Object.values(screens);
+    if (list.length === 0) return null;
+    const ours = setup ? list.filter((screen) => screen.setup === setup) : list;
+    const pool = ours.length ? ours : list;
+    const same = raffleId !== null ? pool.find((screen) => screen.raffleId === String(raffleId)) : null;
+    return (same ?? pool[0]).raffleId;
 }

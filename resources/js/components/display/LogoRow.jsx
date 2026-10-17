@@ -102,7 +102,7 @@ function LogoTile({ logo, width: wanted, index }) {
             className="grid shrink-0 place-items-center"
             style={{ width: `${width}cqw`, height: `${width / TILE_RATIO}cqw`, padding: `${width * 0.04}cqw` }}
         >
-            <StageLogo src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} measure={logo.id !== NATCON_LOGO.id} />
+            <StageLogo src={logo.path} alt={logo.label} tone={logo.tone} stageSrc={logo.stage_path} outline={logo.outline} measure={logo.id !== NATCON_LOGO.id} />
         </motion.div>
     );
 }

@@ -45,7 +45,7 @@ function AllRafflesPanel({ raffleId, setupKey, reloadKey, busy }) {
 
     const showOnWall = (id) => {
         switchWall(id, setupKey === 'one' ? 'single' : 'display');
-        navigate(`/raffle/${id}/control${setupKey === 'one' ? '?setup=one' : ''}`);
+        navigate(`/raffle/${id}/control${setupKey === 'three' ? '?setup=three' : ''}`);
     };
 
     if (error) return <p className="panel p-6 text-sm text-red-300">{error}</p>;

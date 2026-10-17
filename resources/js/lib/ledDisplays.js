@@ -14,7 +14,18 @@ import { useCallback, useEffect, useState } from 'react';
  * in this browser.
  */
 const ASSIGN_KEY = 'natcon-led-displays';
+
+/**
+ * Each screen lives in one named window — natcon-main, natcon-winner,
+ * natcon-prize — whatever raffle it shows. Opening another raffle's screen
+ * reuses that window instead of piling up a new one, and the raffles are
+ * switched inside it (see lib/wallSwitch). The one-screen setup's single
+ * screen shares the main window.
+ */
+export const screenWindowName = (key) => `natcon-${key === 'single' ? 'main' : key}`;
 const MESSAGE = 'natcon-go-fullscreen';
+/** Set on a screen window once it has gone fullscreen with no click (Chrome's Automatic Fullscreen). */
+export const AUTO_FS_KEY = 'natcon-auto-fullscreen';
 const READY_FLAG = '__natconScreenReady';
 
 /**
@@ -92,9 +103,12 @@ const hasLostDisplay = (found) => found.screens.some((display) => !usable(displa
 
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-const isFullscreen = (win) => {
+// Fullscreen either way: the page asked for it, or the window itself was
+// opened fullscreen (Chrome's fullscreen popups) and fills its display.
+const isFullscreen = (win, display = null) => {
     try {
-        return Boolean(win.document.fullscreenElement);
+        if (win.document.fullscreenElement) return true;
+        return Boolean(display) && win.innerWidth >= display.width - 1 && win.innerHeight >= display.height - 1;
     } catch {
         return false;
     }
@@ -106,25 +120,31 @@ const isFullscreen = (win) => {
  * false when the browser would not allow it, and the screen's own button
  * (or another click on SHOW) does the rest.
  */
-export async function showOnDisplay({ url, name, display }) {
+export async function showOnDisplay({ url, name, display, fresh = false }) {
+    // With Chrome allowed to see the monitors, the window opens on its
+    // display already fullscreen (fullscreen popups, Chrome 123+); older
+    // browsers ignore the flag and the click is lent to the screen below.
     const features = display
-        ? `popup,left=${display.availLeft},top=${display.availTop},width=${display.availWidth},height=${display.availHeight}`
+        ? `popup,fullscreen,left=${display.availLeft},top=${display.availTop},width=${display.availWidth},height=${display.availHeight}`
         : 'popup,width=1280,height=760';
     const target = new URL(url, window.location.origin);
 
-    // An empty url finds the window if it is already open, without reloading it.
-    const win = window.open('', name, features);
+    // `fresh`: the window was just closed (it was open but not fullscreen),
+    // so open it anew with the page straight away — the fullscreen flag only
+    // counts for a window being created, never for one already open.
+    // Otherwise an empty url finds the window if it is already open, without reloading it.
+    const win = window.open(fresh ? target.href : '', name, features);
     if (!win) return { opened: false, fullscreen: false };
 
-    let reload = true;
+    let reload = !fresh;
     try {
-        reload = win.location.pathname !== target.pathname;
+        if (!fresh) reload = win.location.pathname !== target.pathname;
     } catch {
         /* Another site's page: load ours over it. */
     }
     if (reload) {
         win.location.href = target.href;
-    } else if (display && !isFullscreen(win)) {
+    } else if (!fresh && display && !isFullscreen(win, display)) {
         // Already open: move it onto its display in case it was dragged off.
         try {
             win.moveTo(display.availLeft, display.availTop);
@@ -144,9 +164,9 @@ export async function showOnDisplay({ url, name, display }) {
             /* Still loading. */
         }
         if (ready) break;
-        await wait(100);
+        await wait(50);
     }
-    if (isFullscreen(win)) return { opened: true, fullscreen: true };
+    if (isFullscreen(win, display)) return { opened: true, fullscreen: true };
 
     try {
         win.postMessage({ type: MESSAGE }, { targetOrigin: window.location.origin, delegate: 'fullscreen' });
@@ -155,24 +175,99 @@ export async function showOnDisplay({ url, name, display }) {
         return { opened: true, fullscreen: false };
     }
     for (let waited = 0; waited < 1500; waited += 100) {
-        if (isFullscreen(win)) return { opened: true, fullscreen: true };
+        if (isFullscreen(win, display)) return { opened: true, fullscreen: true };
         await wait(100);
     }
-    return { opened: true, fullscreen: isFullscreen(win) };
+    return { opened: true, fullscreen: isFullscreen(win, display) };
 }
 
-/** On a screen window: go fullscreen when the Control Center asks. */
+/**
+ * Makes an open screen window fullscreen, from a click in the Control
+ * Center (the click is lent to it). Resolves to 'done', 'already',
+ * 'missing' (no such window open), 'blocked' (pop-ups blocked) or 'failed'.
+ */
+export async function fullscreenScreen(name) {
+    const win = window.open('', name, 'popup');
+    if (!win) return 'blocked';
+
+    // No such window: Chrome just made an empty one — close it again.
+    let blank = false;
+    try {
+        blank = win.location.href === 'about:blank';
+    } catch {
+        /* Another site's page: not ours. */
+    }
+    if (blank) {
+        win.close();
+        return 'missing';
+    }
+    if (isFullscreen(win)) return 'already';
+
+    win.focus();
+    try {
+        win.postMessage({ type: MESSAGE }, { targetOrigin: window.location.origin, delegate: 'fullscreen' });
+    } catch {
+        return 'failed';
+    }
+    for (let waited = 0; waited < 1500; waited += 100) {
+        if (isFullscreen(win)) return 'done';
+        await wait(100);
+    }
+    return isFullscreen(win) ? 'done' : 'failed';
+}
+
+// Opened as a fullscreen popup, the window already fills its display: no
+// need to ask again (which would need a click).
+const fillsScreen = () => window.innerWidth >= window.screen.width - 1 && window.innerHeight >= window.screen.height - 1;
+
+/** On a screen window: whether it is fullscreen, either way. */
+export const windowIsFullscreen = () => Boolean(document.fullscreenElement) || fillsScreen();
+
+/**
+ * On a screen window: go fullscreen when the Control Center asks — and on
+ * the first click or key anywhere on the screen, which the operator makes
+ * anyway to allow sound, so the screen is never left windowed.
+ */
 export function useFullscreenOnRequest() {
     useEffect(() => {
-        const onMessage = (event) => {
-            if (event.origin !== window.location.origin || event.data?.type !== MESSAGE) return;
-            if (document.fullscreenElement) return;
+        const go = () => {
+            if (document.fullscreenElement || fillsScreen()) return;
             document.documentElement.requestFullscreen?.().catch(() => {});
         };
+        const onMessage = (event) => {
+            if (event.origin !== window.location.origin || event.data?.type !== MESSAGE) return;
+            go();
+        };
+        // Not from the screen's own buttons (one of them toggles fullscreen).
+        const onClick = (event) => {
+            if (event.target.closest?.('button, a, input, select, textarea')) return;
+            go();
+        };
+        const onKey = (event) => {
+            if (event.key === 'Escape' || event.target.closest?.('input, select, textarea')) return;
+            go();
+        };
         window.addEventListener('message', onMessage);
+        window.addEventListener('click', onClick);
+        window.addEventListener('keydown', onKey);
         window[READY_FLAG] = true;
+        // With Chrome's Automatic Fullscreen allowed for this site (the
+        // AutomaticFullscreenAllowedForUrls policy), no click is needed at
+        // all: the screen goes fullscreen as soon as it loads. Without it,
+        // the request is refused quietly and the other ways above apply.
+        const onLoad = setTimeout(() => {
+            if (document.fullscreenElement || fillsScreen()) return;
+            document.documentElement.requestFullscreen?.()
+                // It worked with no click: a real reload can bring fullscreen
+                // back by itself, so Refresh may reload (see lib/refreshScreen).
+                .then(() => { try { window.sessionStorage.setItem(AUTO_FS_KEY, '1'); } catch { /* blocked */ } })
+                .catch(() => {});
+        }, 300);
         return () => {
+            clearTimeout(onLoad);
             window.removeEventListener('message', onMessage);
+            window.removeEventListener('click', onClick);
+            window.removeEventListener('keydown', onKey);
             window[READY_FLAG] = false;
         };
     }, []);

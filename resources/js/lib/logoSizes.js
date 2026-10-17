@@ -21,7 +21,8 @@ export const LOGO_SIZE_MAX = 400;
 // never changes the prize screen.
 // cornerLeftMargin / cornerRightMargin: how far each corner logo sits in
 // from its edge of the screen, in % of the screen's width (0 = at the edge).
-export const DEFAULT_LOGO_SIZES = { event: 100, company: 100, congrats: 100, corner: 100, cornerLeft: 100, cornerRight: 100, cornerLeftMargin: 0, cornerRightMargin: 0 };
+// `prize`: the prize's photo on the Prize Display. 100 fills the room between the title and the prize frame without touching either.
+export const DEFAULT_LOGO_SIZES = { event: 100, company: 100, congrats: 100, corner: 100, cornerLeft: 100, cornerRight: 100, cornerLeftMargin: 0, cornerRightMargin: 0, prize: 100 };
 export const LOGO_MARGIN_MIN = 0;
 export const LOGO_MARGIN_MAX = 20;
 
@@ -50,6 +51,7 @@ function parse(raw) {
             cornerRight: clamp(stored.cornerRight ?? stored.corner ?? 100),
             cornerLeftMargin: clampMargin(stored.cornerLeftMargin),
             cornerRightMargin: clampMargin(stored.cornerRightMargin),
+            prize: clamp(stored.prize ?? DEFAULT_LOGO_SIZES.prize),
         };
     } catch {
         return { ...DEFAULT_LOGO_SIZES };
@@ -76,6 +78,7 @@ export function saveLogoSizes(raffleId, sizes) {
             cornerRight: clamp(sizes.cornerRight ?? sizes.corner ?? 100),
             cornerLeftMargin: clampMargin(sizes.cornerLeftMargin),
             cornerRightMargin: clampMargin(sizes.cornerRightMargin),
+            prize: clamp(sizes.prize ?? DEFAULT_LOGO_SIZES.prize),
         });
         window.localStorage.setItem(storageKey(raffleId), stored);
         window.localStorage.setItem(LAST_KEY, stored);
@@ -120,4 +123,5 @@ export const toScale = (sizes) => ({
     // Margins stay in % of the screen's width.
     cornerLeftMargin: sizes.cornerLeftMargin ?? 0,
     cornerRightMargin: sizes.cornerRightMargin ?? 0,
+    prize: (sizes.prize ?? DEFAULT_LOGO_SIZES.prize) / 100,
 });

@@ -38,6 +38,7 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
     const [status, setStatus] = useState('');
     const [category, setCategory] = useState('');
     const [developer, setDeveloper] = useState('');
+    const [location, setLocation] = useState('');
     const [sort, setSort] = useState('ticket_number');
     const [direction, setDirection] = useState('asc');
     const [page, setPage] = useState(1);
@@ -76,6 +77,7 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
                     status: status || undefined,
                     category: category || undefined,
                     developer: developer || undefined,
+                    location: location || undefined,
                     sort,
                     direction,
                     per_page: 25,
@@ -90,14 +92,14 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
         } finally {
             setLoading(false);
         }
-    }, [base, page, search, status, category, developer, sort, direction, toast]);
+    }, [base, page, search, status, category, developer, location, sort, direction, toast]);
 
     useEffect(() => {
         const timer = setTimeout(load, search ? 350 : 0);
         return () => clearTimeout(timer);
     }, [load, search]);
 
-    useEffect(() => { setPage(1); }, [search, status, category, developer, sort, direction]);
+    useEffect(() => { setPage(1); }, [search, status, category, developer, location, sort, direction]);
 
     const refreshRaffle = () => api.get(`/raffles/${raffleId}`)
         .then(({ data }) => setRaffle(data.data))
@@ -225,11 +227,12 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
         if (status) params.set('status', status);
         if (category) params.set('category', category);
         if (developer) params.set('developer', developer);
+        if (location) params.set('location', location);
 
         window.location.assign(`/api${base}/export?${params.toString()}`);
     };
 
-    const filtered = Boolean(search || status || category || developer);
+    const filtered = Boolean(search || status || category || developer || location);
     const total = meta?.total ?? 0;
 
     const actions = (
@@ -290,6 +293,13 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
                     </select>
                 )}
 
+                {filters.locations?.length > 0 && (
+                    <select className="input w-auto min-w-[10rem]" value={location} onChange={(event) => setLocation(event.target.value)}>
+                        <option value="">All locations</option>
+                        {filters.locations.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                )}
+
                 {participants.length > 0 && !filtered && (
                     <button
                         type="button"
@@ -311,7 +321,7 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
                     description={
                         filtered
                             ? 'Try clearing the filters or searching for a different ticket number.'
-                            : 'Import a CSV of ticket numbers to fill this raffle. The file needs a ticket_number column; name, email, phone and category are optional.'
+                            : 'Import a CSV of ticket numbers to fill this raffle. The file needs a ticket_number column; name, email, phone, tag, developers and location are optional.'
                     }
                     action={
                         <button type="button" className="btn btn-gold" onClick={() => setImportOpen(true)}>
@@ -424,7 +434,7 @@ export default function RaffleParticipants({ raffleId: givenId = null, embedded 
                                         <div className="flex flex-wrap gap-4">
                                             {[
                                                 ['skip', 'Skip them', 'Keep the existing records untouched.'],
-                                                ['update', 'Update them', 'Overwrite name, email, phone, tag and developers from the file.'],
+                                                ['update', 'Update them', 'Overwrite name, email, phone, tag, developers and location from the file.'],
                                             ].map(([value, label, hint]) => (
                                                 <label key={value} className="flex cursor-pointer items-start gap-2.5 text-sm">
                                                     <input

@@ -2,9 +2,9 @@ import { motion } from 'framer-motion';
 import { ordinal } from '../../lib/format';
 
 /**
- * The heading over the winners once they are all revealed: "[prize] Winners!",
- * led by how many won it — "(5) ₱5,000 CASH PRIZE WINNERS!" — or "(1) …
- * WINNER!" when that prize has a single winner (`count`),
+ * The heading over the winners once they are all revealed: "[prize] Winners!"
+ * — "₱5,000 CASH PRIZE WINNERS!" — or "… WINNER!" when that prize has a
+ * single winner (`count`, which is never shown as a number here),
  * with the prize's words picked out in bright gold that a light passes
  * through now and then — lettering only, no frame. Without a single prize
  * (the winners won different ones) it is just "Winners!". `size` is the
@@ -22,8 +22,6 @@ export default function WinnersTitle({ prize, count = null, set = null, size, cl
             className={`max-w-[94vw] text-balance text-center font-lux font-semibold uppercase leading-[1.1] ${className}`}
             style={{ fontSize: size }}
         >
-            {/* "(5)" leads the heading — unless the set line below already says how many. */}
-            {count > 0 && !(set > 0) && <span className="lux-foil pr-[0.3em] tracking-[0.08em]">({count})</span>}
             {prize && (
                 <>
                     <span className="prize-shine font-bold tracking-[0.08em]">{prize}</span>{' '}

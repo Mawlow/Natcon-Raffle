@@ -17,9 +17,11 @@ export default function RaffleEditor() {
     // Opened from a Control Center's "New raffle": go back there afterwards.
     const [searchParams] = useSearchParams();
     const fromControl = searchParams.get('from') === 'control';
-    const controlSetup = searchParams.get('setup') === 'one' ? '?setup=one' : '';
+    const controlSetup = searchParams.get('setup') === 'three' ? '?setup=three' : '';
     // Made inside a raffle file: it starts with the file's participants.
     const fileId = searchParams.get('file');
+    // Made inside one of the file's days: it goes in that day.
+    const day = Number(searchParams.get('day')) || null;
     const [raffleFile, setRaffleFile] = useState(null);
 
     const editing = Boolean(raffleId);
@@ -52,7 +54,7 @@ export default function RaffleEditor() {
         try {
             const { data } = editing
                 ? await api.put(`/raffles/${raffleId}`, payload)
-                : await api.post('/raffles', fileId ? { ...payload, raffle_file_id: Number(fileId) } : payload);
+                : await api.post('/raffles', fileId ? { ...payload, raffle_file_id: Number(fileId), ...(day ? { draw_day: day } : {}) } : payload);
             saveLogoSizes(data.data.id, payload.logo_sizes);
 
             if (editing) {
@@ -63,7 +65,7 @@ export default function RaffleEditor() {
                 toast.success(data.data.status === 'READY'
                     ? `"${data.data.name}" is ready to draw with ${formatNumber(data.data.participants_count)} participants.`
                     : `"${data.data.name}" saved. Upload the file's participants to make it ready to draw.`);
-                navigate(`/raffle-files/${fileId}`);
+                navigate(`/raffle-files/${fileId}${day ? `?day=${day}` : ''}`);
             } else if (fromControl) {
                 // Straight into the new raffle's Control Center, ready to put on the wall.
                 toast.success('Raffle created. Import its participants, then show it on the LED wall.');

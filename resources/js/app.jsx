@@ -44,6 +44,7 @@ const ReportPrint = lazy(() => import('./pages/ReportPrint'));
 const AuditLog = lazy(() => import('./pages/AuditLog'));
 const ControlCenter = lazy(() => import('./pages/ControlCenter'));
 const PrizeShowControl = lazy(() => import('./pages/PrizeShowControl'));
+const MainScreenControl = lazy(() => import('./pages/MainScreenControl'));
 
 function PageFallback() {
     return (
@@ -84,6 +85,8 @@ function App() {
                         {/* The Prize Display for raffles drawn by hand, and its control page. */}
                         <Route path="/prize-show" element={<ScreenMargins screen="main"><PrizeShow /></ScreenMargins>} />
                         <Route path="/prize-display" element={<Page><PrizeShowControl /></Page>} />
+                        {/* The winners announced on stage, put on the screen by hand. */}
+                        <Route path="/main-screen" element={<Page><MainScreenControl /></Page>} />
                         {/* The operator's Control Center: drives the three screens. */}
                         <Route path="/raffle/:raffle/control" element={<Page><ByRaffle><ControlCenter /></ByRaffle></Page>} />
 

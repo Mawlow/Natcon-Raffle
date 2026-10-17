@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { windowIsFullscreen } from './ledDisplays';
 
 /**
  * Keeps the LED wall's screens in step. The main display announces each phase
@@ -28,7 +29,8 @@ export function openDisplayChannel(raffleId, onMessage) {
 /*
  * Messages on the channel:
  *   main    → all      { type: 'state', ... }             every change, every HEARTBEAT_MS, and in reply to control-presence
- *   screens → control  { type: 'presence', screen }       every HEARTBEAT_MS, and in reply to control-presence ('winner' | 'prize')
+ *   screens → control  { type: 'presence', screen, fullscreen }  every HEARTBEAT_MS, and in reply to control-presence ('winner' | 'prize')
+ *   control → screen   { type: 'close-window', screen, layout? }  the screen closes itself, so SHOW can open it anew fullscreen
  *   control → main     { type: 'control-presence' }       every HEARTBEAT_MS
  *   control → main     { type: 'command', action }        'start' | 'draw' | 'next' | 'refresh' | 'page'
  *                      (with 'draw', together: true reveals every remaining winner after one drumroll;
@@ -43,15 +45,22 @@ export const PRESENCE_TIMEOUT_MS = 4500;
 /** Keep announcing that this screen is open, so the Control Center can show it as connected. */
 export function useScreenPresence(raffleId, screen) {
     useEffect(() => {
+        let lastPost = 0;
+        const post = () => {
+            lastPost = Date.now();
+            channel.post({ type: 'presence', screen, fullscreen: windowIsFullscreen() });
+        };
         const channel = openDisplayChannel(raffleId, (message) => {
             // Answering the Control Center's own heartbeat keeps this screen
-            // showing as connected even if the browser slows its timers.
-            if (message?.type === 'hello' || message?.type === 'control-presence') {
-                channel.post({ type: 'presence', screen });
-            }
+            // showing as connected even if the browser slows its timers —
+            // but once per beat, however many Control Centers are open.
+            if (message?.type === 'hello') post();
+            else if (message?.type === 'control-presence' && Date.now() - lastPost >= HEARTBEAT_MS / 3) post();
+            // The Control Center is about to open this screen again, fullscreen.
+            else if (message?.type === 'close-window' && message.screen === screen) window.close();
         });
-        channel.post({ type: 'presence', screen });
-        const timer = setInterval(() => channel.post({ type: 'presence', screen }), HEARTBEAT_MS);
+        post();
+        const timer = setInterval(post, HEARTBEAT_MS);
 
         return () => {
             clearInterval(timer);
@@ -85,6 +94,50 @@ export function usePresence(timeout) {
     return [present, touch];
 }
 
+/**
+ * Which screens have been heard from within `timeout` ms, as { [screen]: true }.
+ * Call `heard(screen)` each time one speaks. Timestamps live in a ref, so a
+ * heartbeat from a screen already shown as connected re-renders nothing — with
+ * several Control Centers open, those arrive many times a second.
+ */
+export function useSeen(timeout) {
+    const [present, setPresent] = useState({});
+    const seenRef = useRef({});
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const cutoff = Date.now() - timeout;
+            setPresent((current) => {
+                let next = current;
+                for (const screen of Object.keys(current)) {
+                    if ((seenRef.current[screen] ?? 0) < cutoff) {
+                        if (next === current) next = { ...current };
+                        delete next[screen];
+                    }
+                }
+                return next;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [timeout]);
+
+    const heard = useCallback((screen) => {
+        seenRef.current[screen] = Date.now();
+        setPresent((current) => (current[screen] ? current : { ...current, [screen]: true }));
+    }, []);
+
+    const forget = useCallback((screen) => {
+        delete seenRef.current[screen];
+        setPresent((current) => {
+            if (!current[screen]) return current;
+            const { [screen]: _gone, ...rest } = current;
+            return rest;
+        });
+    }, []);
+
+    return [present, heard, forget];
+}
+
 export function useNow(ms = 1000) {
     const [now, setNow] = useState(() => Date.now());
 
@@ -108,6 +161,15 @@ const withoutSamples = ({ sample_names, sample_tickets, ...rest } = {}) => rest;
 export function keepIfSame(current, fresh) {
     if (!current || !fresh) return fresh;
     return JSON.stringify(withoutSamples(current)) === JSON.stringify(withoutSamples(fresh)) ? current : fresh;
+}
+
+/**
+ * `fresh` unless it says the same as `current` (deep-equal): a main screen
+ * reporting the same state again changes nothing, so nothing re-renders.
+ */
+export function keepIfEqual(current, fresh) {
+    if (!current || !fresh) return fresh;
+    return JSON.stringify(current) === JSON.stringify(fresh) ? current : fresh;
 }
 
 /** `fresh` unless it lists the same winners as `current`. */

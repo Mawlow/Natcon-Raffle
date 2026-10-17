@@ -9,6 +9,7 @@ use App\Models\PrizeSlide;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * The Prize Display: prizes for raffles drawn by hand, and which one the
@@ -20,7 +21,7 @@ class PrizeSlideController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'data' => PrizeSlideResource::collection(PrizeSlide::orderBy('position')->orderBy('id')->get()),
+            'data' => PrizeSlideResource::collection(PrizeSlide::with('winners')->orderBy('position')->orderBy('id')->get()),
         ]);
     }
 
@@ -44,9 +45,43 @@ class PrizeSlideController extends Controller
     {
         abort_unless($request->user()?->isAdmin(), 403);
 
+        if ($prizeSlide->image) {
+            Storage::disk('public')->delete($prizeSlide->image);
+        }
+
         $prizeSlide->delete();
 
         return response()->json(['message' => 'Prize deleted.']);
+    }
+
+    /** A photo of the prize, shown large on the screen; replaces any earlier one. */
+    public function storeImage(Request $request, PrizeSlide $prizeSlide): JsonResponse
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+
+        $request->validate(['image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192']]);
+
+        $path = $request->file('image')->store('prize-slides', 'public');
+
+        if ($prizeSlide->image) {
+            Storage::disk('public')->delete($prizeSlide->image);
+        }
+
+        $prizeSlide->update(['image' => $path]);
+
+        return response()->json(['data' => new PrizeSlideResource($prizeSlide->refresh())]);
+    }
+
+    public function destroyImage(Request $request, PrizeSlide $prizeSlide): JsonResponse
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+
+        if ($prizeSlide->image) {
+            Storage::disk('public')->delete($prizeSlide->image);
+            $prizeSlide->update(['image' => null]);
+        }
+
+        return response()->json(['data' => new PrizeSlideResource($prizeSlide->refresh())]);
     }
 
     /** Puts this prize on the screen, taking any other off. */
@@ -59,7 +94,7 @@ class PrizeSlideController extends Controller
             $prizeSlide->update(['is_live' => true]);
         });
 
-        return response()->json(['data' => new PrizeSlideResource($prizeSlide->refresh())]);
+        return response()->json(['data' => new PrizeSlideResource($prizeSlide->refresh()->load('winners'))]);
     }
 
     /** Takes every prize off the screen, leaving the standby card. */
@@ -75,7 +110,7 @@ class PrizeSlideController extends Controller
     /** What the screen shows: the live prize, or null for standby. Public. */
     public function current(): JsonResponse
     {
-        $slide = PrizeSlide::where('is_live', true)->first();
+        $slide = PrizeSlide::with('winners')->where('is_live', true)->first();
 
         return response()->json(['data' => $slide ? new PrizeSlideResource($slide) : null]);
     }

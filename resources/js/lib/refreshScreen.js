@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AUTO_FS_KEY } from './ledDisplays';
 
 const EVENT = 'natcon-refresh-screen';
 
@@ -10,7 +11,15 @@ const EVENT = 'natcon-refresh-screen';
  * fullscreen. Outside fullscreen it is an ordinary reload.
  */
 export function refreshScreen() {
-    if (document.fullscreenElement) window.dispatchEvent(new Event(EVENT));
+    // Where fullscreen comes back by itself after a reload, a real reload is
+    // better: it also picks up a new build of the app.
+    let autoFullscreen = false;
+    try {
+        autoFullscreen = window.sessionStorage.getItem(AUTO_FS_KEY) === '1';
+    } catch {
+        /* Storage can be blocked. */
+    }
+    if (document.fullscreenElement && !autoFullscreen) window.dispatchEvent(new Event(EVENT));
     else window.location.reload();
 }
 

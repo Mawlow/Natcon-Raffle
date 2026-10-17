@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, CheckCircle2, ChevronRight, Folder, FolderOpen, ListChecks, Gift, MonitorPlay, Pencil, Plus, Trash2, Upload, Users, Wand2, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, CheckCircle2, ChevronRight, Folder, FolderOpen, ListChecks, Gift, Lock, MonitorPlay, Pencil, Play, Plus, Trash2, Upload, Users, Wand2, X } from 'lucide-react';
 import api, { parseError } from '../lib/api';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import RaffleCard from '../components/raffle/RaffleCard';
+import DayStats from '../components/raffle/DayStats';
 import PredrawPanel from '../components/raffle/PredrawPanel';
 import CsvUploader from '../components/participants/CsvUploader';
 import CsvPreview from '../components/participants/CsvPreview';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import RedrawDialog from '../components/raffle/RedrawDialog';
+import UnlockDialog, { lockWinners } from '../components/raffle/UnlockDialog';
+import SetFolders from '../components/raffle/SetFolders';
 import LoadingState, { InlineSpinner } from '../components/ui/LoadingState';
 import EmptyState from '../components/ui/EmptyState';
 import { deleteRaffleConfirmation } from '../lib/deleteRaffle';
 import { formatDateTime, formatNumber } from '../lib/format';
-import { inDrawingOrder, setLabel } from '../lib/sets';
+import { dayLabel, inDrawingOrder, setLabel } from '../lib/sets';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -21,6 +24,15 @@ import { useToast } from '../context/ToastContext';
  * the participants (one CSV for the whole file), step 2 the raffles made in
  * it — each starts with those participants — and then the Control Center,
  * where the file's raffles are drawn one by one.
+ *
+ * The file is split into days — Day 1, Day 2, … — each with its own Ready
+ * to Draw, Pre-draw and Completed tabs and its own set folders; open the
+ * file and pick the day.
+ *
+ * A raffle already drawn can be kept as a pre-draw: its winners become its
+ * pre-selected list, locked so nobody can change them, and it is put in a
+ * set — then at the event it is played again, in set order, and the screens
+ * land on the same winners.
  */
 export default function RaffleFileDetail() {
     const { file: fileId } = useParams();
@@ -44,11 +56,21 @@ export default function RaffleFileDetail() {
 
     // The file's three lists: raffles to draw, pre-draws, and the completed ones.
     const [searchParams, setSearchParams] = useSearchParams();
+    // The day open: ?day=1 is Day 1, ?day=0 the raffles in no day; none is
+    // the day folders. Inside a day, ?tab= and ?set= as before.
+    const dayKey = searchParams.get('day');
+    const dayOpen = dayKey !== null;
+    const day = dayOpen ? (Number(dayKey) || null) : null;
     const tab = ['predraw', 'completed'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'ready';
-    const setTab = (key) => setSearchParams(key === 'ready' ? {} : { tab: key }, { replace: true });
-    // In Ready to Draw, each set is a folder: ?set=1 is the First Set opened.
+    const params = (extra) => ({ ...(dayOpen ? { day: dayKey } : {}), ...extra });
+    const openDay = (next) => { stopSelecting(); setSearchParams(next === null ? {} : { day: String(next) }); };
+    const setTab = (key) => {
+        stopSelecting();
+        setSearchParams(params(key === 'ready' ? {} : { tab: key }), { replace: true });
+    };
+    // In Ready to Draw, each set is a folder: ?set=2 is the Second Set opened.
     const openSet = tab === 'ready' ? Number(searchParams.get('set')) || null : null;
-    const openFolder = (set) => setSearchParams(set ? { set: String(set) } : {});
+    const openFolder = (set) => setSearchParams(params(set ? { set: String(set) } : {}));
 
     // Choosing raffles to put into a set: First Set, Second Set, …
     const [selecting, setSelecting] = useState(false);
@@ -58,6 +80,15 @@ export default function RaffleFileDetail() {
     const [confirm, setConfirm] = useState(null);
     const [busy, setBusy] = useState(false);
     const [redrawing, setRedrawing] = useState(null);
+    // Drawn raffles kept as pre-draws (with the set to put them in), played
+    // again for the event, or unlocked with the owner PIN.
+    const [keeping, setKeeping] = useState(null);
+    const [keepSet, setKeepSet] = useState('');
+    const [keepDay, setKeepDay] = useState('');
+    const [replayingMany, setReplayingMany] = useState(null);
+    const [unlocking, setUnlocking] = useState(null);
+    // The Completed tab's open set folder: the record of what was drawn, set by set.
+    const [completedSet, setCompletedSet] = useState(null);
 
     const load = useCallback(async () => {
         try {
@@ -161,18 +192,27 @@ export default function RaffleFileDetail() {
     };
 
     const hasParticipants = Boolean(raffleFile?.participants_count);
+    // The days: Day 1, Day 2, … and the raffles in no day yet.
+    const usedDays = [...new Set(allRaffles.map((raffle) => raffle.draw_day).filter(Boolean))].sort((a, b) => a - b);
+    const nextDay = (usedDays.at(-1) ?? 0) + 1;
+    const noDayCount = allRaffles.filter((raffle) => !raffle.draw_day).length;
+    // The open day's raffles: everything below is about these.
+    const dayRaffles = allRaffles.filter((raffle) => (raffle.draw_day ?? null) === day);
+    // Drawn in set order: every ordinary raffle, and the pre-draws put in a set.
+    const inSets = (raffle) => !raffle.is_predraw || Boolean(raffle.draw_set);
     // The Control Center opens on the first raffle still to draw.
-    const raffles = inDrawingOrder(allRaffles.filter((raffle) => !raffle.is_predraw && raffle.status !== 'COMPLETED'));
-    const usedSets = [...new Set(allRaffles.map((raffle) => raffle.draw_set).filter(Boolean))].sort((a, b) => a - b);
+    const raffles = inDrawingOrder(dayRaffles.filter((raffle) => inSets(raffle) && raffle.status !== 'COMPLETED'));
+    const usedSets = [...new Set(dayRaffles.map((raffle) => raffle.draw_set).filter(Boolean))].sort((a, b) => a - b);
     const nextSet = (usedSets.at(-1) ?? 0) + 1;
     // What the Ready to Draw tab shows: the open folder's raffles, or the
     // raffles in no folder yet (beneath the folders).
     const visible = raffles.filter((raffle) => (raffle.draw_set ?? null) === openSet);
-    const folders = usedSets.map((set) => {
-        const inSet = allRaffles.filter((raffle) => !raffle.is_predraw && raffle.draw_set === set);
-        return { set, toDraw: inSet.filter((raffle) => raffle.status !== 'COMPLETED').length, total: inSet.length };
-    });
-    const folderNext = openSet ? visible.find((raffle) => raffle.status !== 'CANCELLED') : null;
+    // A day's folder card: what is in it.
+    const daySummary = (inDay) => {
+        const toDraw = inDay.filter((raffle) => inSets(raffle) && raffle.status !== 'COMPLETED').length;
+        const done = inDay.filter((raffle) => raffle.status === 'COMPLETED').length;
+        return [toDraw ? `${toDraw} to draw` : null, done ? `${done} completed` : null].filter(Boolean).join(' · ') || 'Empty';
+    };
 
     const toggleSelect = (raffle) => setSelected((current) => {
         const next = new Set(current);
@@ -181,11 +221,14 @@ export default function RaffleFileDetail() {
     });
     const stopSelecting = () => { setSelecting(false); setSelected(new Set()); };
 
-    const putInSet = async (set) => {
+    // Into a set folder (`draw_set`) or a day folder (`draw_day`), or out of one (null).
+    const putInSet = async (set, field = 'draw_set') => {
         setSavingSet(true);
         try {
-            await api.post('/raffles/sets', { raffle_ids: [...selected], draw_set: set });
-            toast.success(set ? `${selected.size} raffle${selected.size === 1 ? '' : 's'} put in the ${setLabel(set)}.` : `${selected.size} raffle${selected.size === 1 ? '' : 's'} taken out of their set.`);
+            await api.post('/raffles/sets', { raffle_ids: [...selected], [field]: set });
+            const count = `${selected.size} raffle${selected.size === 1 ? '' : 's'}`;
+            const name = field === 'draw_day' ? dayLabel(set) : `the ${setLabel(set)}`;
+            toast.success(set ? `${count} put in ${name}.` : `${count} taken out of their ${field === 'draw_day' ? 'day' : 'set'}.`);
             stopSelecting();
             await load();
         } catch (error) {
@@ -194,8 +237,134 @@ export default function RaffleFileDetail() {
             setSavingSet(false);
         }
     };
-    const completed = allRaffles.filter((raffle) => raffle.status === 'COMPLETED');
-    const predrawsToPlay = allRaffles.filter((raffle) => raffle.is_predraw && raffle.status !== 'COMPLETED').length;
+    const completed = inDrawingOrder(dayRaffles.filter((raffle) => raffle.status === 'COMPLETED'));
+    const selectedRaffles = dayRaffles.filter((raffle) => selected.has(raffle.id));
+
+    // Drawn raffles kept as pre-draws, their winners locked, in the chosen set.
+    const keep = async () => {
+        setBusy(true);
+        try {
+            const { data } = await api.post('/predraws/keep', {
+                raffle_ids: keeping.map((raffle) => raffle.id),
+                ...(keepSet === 'keep' ? {} : { draw_set: keepSet ? Number(keepSet) : null }),
+                ...(keepDay === 'keep' ? {} : { draw_day: keepDay ? Number(keepDay) : null }),
+            });
+            toast.success(data.message, { title: data.data.kept.length ? 'Kept as pre-draws' : 'Nothing kept' });
+            data.data.skipped.forEach((row) => toast.error(`${row.name}: ${row.reason}.`));
+            setKeeping(null);
+            stopSelecting();
+            await load();
+        } catch (error) {
+            toast.error(parseError(error, 'The raffles could not be kept as pre-draws.').message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    // Played again for the event: revealed winners cleared, the same winners come out again.
+    const replayMany = async () => {
+        setBusy(true);
+        try {
+            const { data } = await api.post('/predraws/replay', { raffle_ids: replayingMany.map((raffle) => raffle.id) });
+            toast.success(data.message, { title: data.data.reset.length ? 'Ready to play again' : 'Nothing reset' });
+            data.data.skipped.forEach((row) => toast.error(`${row.name}: ${row.reason}`));
+            setReplayingMany(null);
+            stopSelecting();
+            await load();
+        } catch (error) {
+            toast.error(parseError(error, 'The pre-draws could not be reset.').message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const lockMany = async (list) => {
+        setBusy(true);
+        try {
+            await Promise.all(list.map((raffle) => lockWinners(raffle)));
+            toast.success(`${list.length} raffle${list.length === 1 ? '' : 's'} locked: the winners cannot be changed without the owner PIN.`, { title: 'Locked' });
+            stopSelecting();
+            await load();
+        } catch (error) {
+            toast.error(parseError(error, 'The winners could not be locked.').message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    // The toolbar's folder buttons: the days, then the sets, each with a new one and a way out.
+    const folderButtons = (
+        <>
+            <span className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-muted-dim">Move to day</span>
+            {[...usedDays, nextDay].map((day) => (
+                <button
+                    key={`day-${day}`}
+                    type="button"
+                    className={day === nextDay ? 'btn btn-outline px-3 py-1.5 text-xs' : 'btn btn-gold px-3 py-1.5 text-xs'}
+                    disabled={selected.size === 0 || savingSet}
+                    onClick={() => putInSet(day, 'draw_day')}
+                >
+                    {day === nextDay ? <Plus size={13} /> : <Calendar size={13} />}
+                    {day === nextDay ? `New: ${dayLabel(day)}` : dayLabel(day)}
+                </button>
+            ))}
+            {usedDays.length > 0 && (
+                <button type="button" className="btn btn-ghost px-3 py-1.5 text-xs" disabled={selected.size === 0 || savingSet} onClick={() => putInSet(null, 'draw_day')}>
+                    No day
+                </button>
+            )}
+            <span className="ml-2 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-muted-dim">Set</span>
+            {[...usedSets, nextSet].map((set) => (
+                <button
+                    key={`set-${set}`}
+                    type="button"
+                    className={set === nextSet ? 'btn btn-outline px-3 py-1.5 text-xs' : 'btn btn-gold px-3 py-1.5 text-xs'}
+                    disabled={selected.size === 0 || savingSet}
+                    onClick={() => putInSet(set)}
+                >
+                    {set === nextSet ? <Plus size={13} /> : <Folder size={13} />}
+                    {set === nextSet ? `New: ${setLabel(set)}` : setLabel(set)}
+                </button>
+            ))}
+            {usedSets.length > 0 && (
+                <button type="button" className="btn btn-ghost px-3 py-1.5 text-xs" disabled={selected.size === 0 || savingSet} onClick={() => putInSet(null)}>
+                    No set
+                </button>
+            )}
+        </>
+    );
+
+    // The set folders of the open day, the same on every tab. `action` goes
+    // beside an open set's name.
+    const dayFolders = ({ items, set, onSet, summary, action = null, emptyLabel, render }) => (
+        <SetFolders items={items} openSet={set} onOpen={onSet} noneLabel="Not in a set" emptyLabel={emptyLabel} summary={summary} action={action}>
+            {render}
+        </SetFolders>
+    );
+    const dayName = day ? dayLabel(day) : 'Not in a day';
+    const newRaffleLink = `/raffles/new?file=${fileId}${day ? `&day=${day}` : ''}`;
+
+    // A big prize: its winners are left out of every other draw of the event, all days.
+    const toggleOut = async (raffle) => {
+        const on = !raffle.winners_out_for_event;
+        try {
+            await api.put(`/raffles/${raffle.id}`, { winners_out_for_event: on });
+            toast.success(on
+                ? `"${raffle.name}" is a big prize: its winners are out of every other draw in this file, on every day.`
+                : `"${raffle.name}"'s winners can win other days' draws again.`);
+            await load();
+        } catch (error) {
+            toast.error(parseError(error, 'The raffle could not be changed.').message);
+        }
+    };
+
+    const openKeep = (list) => {
+        setKeepSet(list.some((raffle) => raffle.draw_set) ? 'keep' : '');
+        setKeepDay(list.some((raffle) => raffle.draw_day) ? 'keep' : (day ? String(day) : ''));
+        setKeeping(list);
+    };
+    // Pre-draws still to play, plus the kept (locked) ones waiting in their sets.
+    const predrawsToPlay = dayRaffles.filter((raffle) => raffle.is_predraw && (raffle.status !== 'COMPLETED' || raffle.is_locked)).length;
     const readyCount = raffles.filter((raffle) => raffle.status === 'READY').length;
     const firstToDraw = raffles.find((raffle) => !['COMPLETED', 'CANCELLED'].includes(raffle.status)) ?? raffles[0];
 
@@ -219,10 +388,14 @@ export default function RaffleFileDetail() {
                 run: () => api.post(`/raffles/${target.id}/convert`, { to: 'predraw' }),
                 after: () => { setSearchParams({ tab: 'predraw', open: String(target.id) }); load(); },
             })}
-            selectable={selecting && !raffle.is_predraw}
+            selectable={selecting}
             selected={selected.has(raffle.id)}
             onToggleSelect={toggleSelect}
             onRedraw={setRedrawing}
+            onKeep={(target) => openKeep([target])}
+            onToggleOut={toggleOut}
+            onLock={(target) => lockMany([target])}
+            onUnlock={setUnlocking}
             onArchive={(target) => setConfirm({
                 title: 'Archive this raffle?',
                 description: `"${target.name}" will be hidden from the active list. Its winners and audit trail are kept.`,
@@ -348,7 +521,78 @@ export default function RaffleFileDetail() {
                 )}
             </section>
 
-            {/* The file's raffles: ready to draw, and pre-draws */}
+            {/* The days: open one to see its raffles, pre-draws and completed draws. */}
+            {!dayOpen && (
+                <section>
+                    <div className="mb-4">
+                        <h3 className="flex items-center gap-2 font-display text-lg font-bold text-white">
+                            <Calendar size={17} /> Days
+                        </h3>
+                        <p className="mt-1 text-sm text-muted">
+                            Each day of the event has its own raffles to draw, pre-draws and completed draws, in set folders. Open a day to work in it.
+                        </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        {usedDays.map((used) => (
+                            <button
+                                key={used}
+                                type="button"
+                                onClick={() => openDay(used)}
+                                className="panel group flex items-center gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:border-gold/35"
+                            >
+                                <span className="rounded-xl border border-gold/25 bg-gold/10 p-2.5 text-gold"><FolderOpen size={20} /></span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block font-display text-base font-bold text-white group-hover:text-gold-bright">{dayLabel(used)}</span>
+                                    <span className="text-xs text-muted-dim">{daySummary(allRaffles.filter((raffle) => raffle.draw_day === used))}</span>
+                                </span>
+                                <ChevronRight size={16} className="text-muted-dim group-hover:text-gold" />
+                            </button>
+                        ))}
+                        {noDayCount > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => openDay(0)}
+                                className="panel group flex items-center gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:border-gold/35"
+                            >
+                                <span className="rounded-xl border border-line bg-white/5 p-2.5 text-muted"><Folder size={20} /></span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block font-display text-base font-bold text-white group-hover:text-gold-bright">Not in a day</span>
+                                    <span className="text-xs text-muted-dim">{daySummary(allRaffles.filter((raffle) => !raffle.draw_day))}</span>
+                                </span>
+                                <ChevronRight size={16} className="text-muted-dim group-hover:text-gold" />
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => openDay(nextDay)}
+                            className="group flex items-center gap-3 rounded-2xl border border-dashed border-line p-4 text-left transition hover:border-gold/45"
+                        >
+                            <span className="rounded-xl border border-line bg-white/5 p-2.5 text-muted group-hover:text-gold"><Plus size={20} /></span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block font-display text-base font-bold text-white group-hover:text-gold-bright">New: {dayLabel(nextDay)}</span>
+                                <span className="text-xs text-muted-dim">Make its raffles and pre-draws inside it</span>
+                            </span>
+                        </button>
+                    </div>
+                </section>
+            )}
+
+            {dayOpen && (
+            <>
+            <div className="mb-5 flex flex-wrap items-center gap-3">
+                <button type="button" className="btn btn-ghost px-3" onClick={() => openDay(null)}>
+                    <ArrowLeft size={15} /> All days
+                </button>
+                <h3 className="flex items-center gap-2 font-display text-xl font-bold text-gold-bright">
+                    <Calendar size={19} /> {dayName}
+                    <span className="text-sm font-normal text-muted-dim">({dayRaffles.length} raffle{dayRaffles.length === 1 ? '' : 's'})</span>
+                </h3>
+            </div>
+
+            {/* The day in numbers, and who its draws pick from. */}
+            {day && <DayStats fileId={fileId} day={day} version={allRaffles} />}
+
+            {/* The day's raffles: ready to draw, pre-draws, and completed */}
             <nav className="mb-5 flex flex-wrap gap-2 border-b border-line pb-3" aria-label="Raffle file sections">
                 {[
                     { key: 'ready', label: 'Ready to Draw', icon: Gift, count: raffles.length },
@@ -383,17 +627,17 @@ export default function RaffleFileDetail() {
                                 <Gift size={17} /> Ready to Draw
                             </h3>
                             <p className="mt-1 text-sm text-muted">
-                                Each raffle starts with this file's participants. Set its prizes, logos and who can win, and it is saved ready to draw.
+                                {dayName}'s raffles, in the order they are drawn. Each starts with this file's participants; set its prizes, logos and who can win, and it is saved ready to draw.
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {raffles.length > 0 && !selecting && (
                                 <button type="button" className="btn btn-outline" onClick={() => setSelecting(true)}>
-                                    <ListChecks size={16} /> Put into set folders
+                                    <ListChecks size={16} /> Put into day & set folders
                                 </button>
                             )}
-                            <Link to={`/raffles/new?file=${fileId}`} className="btn btn-gold">
-                                <Plus size={16} /> New raffle in this file
+                            <Link to={newRaffleLink} className="btn btn-gold">
+                                <Plus size={16} /> New raffle in {dayName}
                             </Link>
                         </div>
                     </div>
@@ -411,29 +655,8 @@ export default function RaffleFileDetail() {
                             >
                                 {selected.size === visible.length && visible.length > 0 ? 'Select none' : 'Select all'}
                             </button>
-                            <span className="ml-auto flex flex-wrap gap-2">
-                                {[...usedSets, nextSet].map((set) => (
-                                    <button
-                                        key={set}
-                                        type="button"
-                                        className={set === nextSet ? 'btn btn-outline px-3 py-1.5 text-xs' : 'btn btn-gold px-3 py-1.5 text-xs'}
-                                        disabled={selected.size === 0 || savingSet}
-                                        onClick={() => putInSet(set)}
-                                    >
-                                        {set === nextSet ? <Plus size={13} /> : <Folder size={13} />}
-                                        {set === nextSet ? `New folder: ${setLabel(set)}` : `Move to ${setLabel(set)}`}
-                                    </button>
-                                ))}
-                                {usedSets.length > 0 && (
-                                    <button
-                                        type="button"
-                                        className="btn btn-ghost px-3 py-1.5 text-xs"
-                                        disabled={selected.size === 0 || savingSet}
-                                        onClick={() => putInSet(null)}
-                                    >
-                                        Take out of folder
-                                    </button>
-                                )}
+                            <span className="ml-auto flex flex-wrap items-center gap-2">
+                                {folderButtons}
                                 <button type="button" className="btn btn-ghost px-3 py-1.5 text-xs" onClick={stopSelecting} disabled={savingSet}>
                                     <X size={13} /> Done
                                 </button>
@@ -444,72 +667,33 @@ export default function RaffleFileDetail() {
                     {raffles.length === 0 ? (
                         <EmptyState
                             icon={Gift}
-                            title="No raffles in this file yet"
+                            title={`No raffles to draw in ${dayName}`}
                             description={hasParticipants
-                                ? 'Create the raffles for this event — each one gets the participants above.'
+                                ? `Create ${dayName}'s raffles here — each one gets the participants above.`
                                 : 'Upload the participants first, then create the raffles for this event.'}
-                            action={<Link to={`/raffles/new?file=${fileId}`} className="btn btn-gold"><Plus size={16} /> Create raffle</Link>}
+                            action={<Link to={newRaffleLink} className="btn btn-gold"><Plus size={16} /> Create raffle</Link>}
                         />
                     ) : (
-                        <div className="space-y-6">
-                            {openSet ? (
-                                /* One set's folder, opened */
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <button type="button" className="btn btn-ghost px-3" onClick={() => openFolder(null)}>
-                                        <ArrowLeft size={15} /> All folders
-                                    </button>
-                                    <h4 className="flex items-center gap-2 font-display text-lg font-bold text-gold-bright">
-                                        <FolderOpen size={18} /> {setLabel(openSet)}
-                                        <span className="text-sm font-normal text-muted-dim">({visible.length} to draw)</span>
-                                    </h4>
-                                    {folderNext && (
-                                        <Link to={`/raffle/${folderNext.id}/control`} className="btn btn-gold ml-auto">
-                                            <MonitorPlay size={15} /> Draw the {setLabel(openSet)}
-                                        </Link>
-                                    )}
+                        dayFolders({
+                            items: raffles,
+                            set: openSet,
+                            onSet: openFolder,
+                            summary: (inFolder) => `${inFolder.length} to draw`,
+                            emptyLabel: 'Everything in this folder has been drawn — see the Completed tab.',
+                            action: (inFolder) => {
+                                const next = inFolder.find((raffle) => raffle.status !== 'CANCELLED');
+                                return next && (
+                                    <Link to={`/raffle/${next.id}/control`} className="btn btn-gold">
+                                        <MonitorPlay size={15} /> Draw the {setLabel(openSet)}
+                                    </Link>
+                                );
+                            },
+                            render: (inFolder) => (
+                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                    {inFolder.map(card)}
                                 </div>
-                            ) : folders.length > 0 && (
-                                /* The set folders: First Set, Second Set, … */
-                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                    {folders.map((folder) => (
-                                        <button
-                                            key={folder.set}
-                                            type="button"
-                                            onClick={() => openFolder(folder.set)}
-                                            className="panel group flex items-center gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:border-gold/35"
-                                        >
-                                            <span className="rounded-xl border border-gold/25 bg-gold/10 p-2.5 text-gold">
-                                                <Folder size={20} />
-                                            </span>
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block font-display text-base font-bold text-white group-hover:text-gold-bright">{setLabel(folder.set)}</span>
-                                                <span className="text-xs text-muted-dim">
-                                                    {folder.toDraw} to draw{folder.total > folder.toDraw ? ` · ${folder.total - folder.toDraw} completed` : ''}
-                                                </span>
-                                            </span>
-                                            <ChevronRight size={16} className="text-muted-dim group-hover:text-gold" />
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {visible.length > 0 ? (
-                                <div>
-                                    {!openSet && folders.length > 0 && (
-                                        <h4 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-                                            Not in a folder ({visible.length})
-                                        </h4>
-                                    )}
-                                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                        {visible.map(card)}
-                                    </div>
-                                </div>
-                            ) : openSet && (
-                                <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">
-                                    Every raffle in the {setLabel(openSet)} has been drawn — see the Completed tab.
-                                </p>
-                            )}
-                        </div>
+                            ),
+                        })
                     )}
                 </section>
 
@@ -521,7 +705,7 @@ export default function RaffleFileDetail() {
                                 <MonitorPlay size={17} /> Draw them
                             </h3>
                             <p className="mt-1 text-sm text-muted">
-                                {readyCount} of {raffles.length} raffle{raffles.length === 1 ? '' : 's'} ready to draw. The Control Center lists this file's raffles — pick one, put it on the LED wall and draw.
+                                {readyCount} of {raffles.length} raffle{raffles.length === 1 ? '' : 's'} ready to draw in {dayName}. The Control Center lists this file's raffles by day and set — pick one, put it on the LED wall and draw.
                             </p>
                         </div>
                         {firstToDraw && (
@@ -536,7 +720,7 @@ export default function RaffleFileDetail() {
 
             {tab === 'predraw' && (
                 hasParticipants
-                    ? <PredrawPanel raffleFileId={fileId} hidePlayed onChanged={load} initialOpen={Number(searchParams.get('open')) || null} />
+                    ? <PredrawPanel raffleFileId={fileId} day={day} hidePlayed onChanged={load} initialOpen={Number(searchParams.get('open')) || null} />
                     : (
                         <EmptyState
                             icon={Wand2}
@@ -548,14 +732,69 @@ export default function RaffleFileDetail() {
 
             {tab === 'completed' && (
                 <section>
-                    <div className="mb-4">
-                        <h3 className="flex items-center gap-2 font-display text-lg font-bold text-white">
-                            <CheckCircle2 size={17} /> Completed
-                        </h3>
-                        <p className="mt-1 text-sm text-muted">
-                            Raffles and pre-draws with all their winners drawn. To draw one again, use Clear winners &amp; redraw in its menu.
-                        </p>
+                    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <h3 className="flex items-center gap-2 font-display text-lg font-bold text-white">
+                                <CheckCircle2 size={17} /> Completed
+                            </h3>
+                            <p className="mt-1 text-sm text-muted">
+                                Raffles and pre-draws with all their winners drawn. Keep a drawn raffle as a pre-draw to play it again at the event with the same winners — its winners are locked, and only the owner PIN unlocks them.
+                            </p>
+                        </div>
+                        {completed.length > 0 && !selecting && (
+                            <button type="button" className="btn btn-outline" onClick={() => setSelecting(true)}>
+                                <ListChecks size={16} /> Select raffles
+                            </button>
+                        )}
                     </div>
+
+                    {selecting && (
+                        <div className="panel panel-gold sticky top-3 z-20 mb-5 flex flex-wrap items-center gap-2 p-4">
+                            <p className="mr-2 text-sm text-white">
+                                <span className="font-semibold text-gold-bright">{selected.size}</span> selected
+                                <span className="text-muted"> — tick the raffles, then choose what to do with them.</span>
+                            </p>
+                            <button
+                                type="button"
+                                className="btn btn-ghost px-3 py-1.5 text-xs"
+                                onClick={() => setSelected(selected.size === completed.length ? new Set() : new Set(completed.map((raffle) => raffle.id)))}
+                            >
+                                {selected.size === completed.length && completed.length > 0 ? 'Select none' : 'Select all'}
+                            </button>
+                            <span className="ml-auto flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    className="btn btn-gold px-3 py-1.5 text-xs"
+                                    disabled={selected.size === 0 || busy}
+                                    onClick={() => openKeep(selectedRaffles)}
+                                    title="Their winners become pre-selected lists, locked, in a set of your choice"
+                                >
+                                    <Wand2 size={13} /> Keep winners as pre-draws
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-outline px-3 py-1.5 text-xs"
+                                    disabled={selected.size === 0 || busy || !selectedRaffles.some((raffle) => raffle.is_predraw)}
+                                    onClick={() => setReplayingMany(selectedRaffles.filter((raffle) => raffle.is_predraw))}
+                                    title="Clear their revealed winners so the draw reveals the same winners again"
+                                >
+                                    <Play size={13} /> Play again
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-outline px-3 py-1.5 text-xs"
+                                    disabled={selected.size === 0 || busy || !selectedRaffles.some((raffle) => !raffle.is_locked)}
+                                    onClick={() => lockMany(selectedRaffles.filter((raffle) => !raffle.is_locked))}
+                                >
+                                    <Lock size={13} /> Lock winners
+                                </button>
+                                {folderButtons}
+                                <button type="button" className="btn btn-ghost px-3 py-1.5 text-xs" onClick={stopSelecting} disabled={savingSet || busy}>
+                                    <X size={13} /> Done
+                                </button>
+                            </span>
+                        </div>
+                    )}
 
                     {completed.length === 0 ? (
                         <EmptyState
@@ -564,14 +803,82 @@ export default function RaffleFileDetail() {
                             description="A raffle or pre-draw moves here once all its winners have been drawn."
                         />
                     ) : (
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                            {completed.map(card)}
-                        </div>
+                        dayFolders({
+                            items: completed,
+                            set: completedSet,
+                            onSet: setCompletedSet,
+                            emptyLabel: 'Nothing completed in this folder yet.',
+                            summary: (inFolder) => {
+                                const predraws = inFolder.filter((raffle) => raffle.is_predraw).length;
+                                return `${inFolder.length} completed${predraws ? ` · ${predraws} pre-draw${predraws === 1 ? '' : 's'}` : ''}`;
+                            },
+                            render: (inFolder) => (
+                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                    {inFolder.map(card)}
+                                </div>
+                            ),
+                        })
                     )}
                 </section>
             )}
 
+            </>
+            )}
+
             <RedrawDialog raffle={redrawing} onClose={() => setRedrawing(null)} onDone={load} />
+            <UnlockDialog raffle={unlocking} onClose={() => setUnlocking(null)} onDone={load} />
+
+            {/* Drawn raffles kept as pre-draws: which set they are played in. */}
+            <ConfirmDialog
+                open={Boolean(keeping)}
+                title={keeping?.length === 1 ? `Keep "${keeping[0].name}" as a pre-draw?` : `Keep ${keeping?.length ?? 0} raffles as pre-draws?`}
+                description={
+                    'Each raffle\'s winners become its pre-selected list — the same people, in the order they were drawn, with the prize they won — and the winners are locked so nobody can change or remove them. Nothing is deleted: the winners, prizes and draw history stay.\n\n'
+                    + 'At the event, play it again from its set: the screens run the draw and land on the same winners.'
+                }
+                confirmLabel="Keep as pre-draws"
+                tone="gold"
+                busy={busy}
+                onConfirm={keep}
+                onCancel={() => setKeeping(null)}
+            >
+                <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label className="label" htmlFor="keep-day">Which day?</label>
+                    <select id="keep-day" className="input" value={keepDay} onChange={(event) => setKeepDay(event.target.value)} disabled={busy}>
+                        {keeping?.some((raffle) => raffle.draw_day) && <option value="keep">Keep their current days</option>}
+                        <option value="">No day yet</option>
+                        {[...usedDays, nextDay].map((day) => (
+                            <option key={day} value={day}>{day === nextDay ? `New: ${dayLabel(day)}` : dayLabel(day)}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className="label" htmlFor="keep-set">Which set?</label>
+                    <select id="keep-set" className="input" value={keepSet} onChange={(event) => setKeepSet(event.target.value)} disabled={busy}>
+                        {keeping?.some((raffle) => raffle.draw_set) && <option value="keep">Keep their current sets</option>}
+                        <option value="">Not in a set yet</option>
+                        {[...usedSets, nextSet].map((set) => (
+                            <option key={set} value={set}>{set === nextSet ? `New: ${setLabel(set)}` : setLabel(set)}</option>
+                        ))}
+                    </select>
+                </div>
+                </div>
+            </ConfirmDialog>
+
+            <ConfirmDialog
+                open={Boolean(replayingMany)}
+                title={replayingMany?.length === 1 ? `Play "${replayingMany[0].name}" again?` : `Play ${replayingMany?.length ?? 0} pre-draws again?`}
+                description={
+                    'Their revealed winners are cleared from the screens and the pre-draws set back to READY. When each one is drawn again, the same winners come out in the same order — nobody on the lists changes.\n\n'
+                    + 'The earlier reveals stay in the audit log.'
+                }
+                confirmLabel="Play again — same winners"
+                tone="gold"
+                busy={busy}
+                onConfirm={replayMany}
+                onCancel={() => setReplayingMany(null)}
+            />
 
             <ConfirmDialog
                 open={Boolean(confirm)}

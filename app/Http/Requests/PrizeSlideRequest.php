@@ -25,6 +25,11 @@ class PrizeSlideRequest extends FormRequest
             'prize_currency' => ['nullable', 'string', 'max:8'],
             'logos' => ['nullable', 'array', 'max:20'],
             'logos.*' => ['string', 'distinct', Rule::in(RaffleLogos::ids())],
+            // The top-left and top-right logos, either side of NATCON; null leaves the corner empty.
+            'logo_left' => ['nullable', 'string', Rule::in(RaffleLogos::ids())],
+            'logo_right' => ['nullable', 'string', Rule::in(RaffleLogos::ids())],
+            // The photo turning round and round on the screen, like a product on a turntable.
+            'spin' => ['nullable', 'boolean'],
         ];
     }
 }

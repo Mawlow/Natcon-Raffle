@@ -19,6 +19,9 @@ import RaffleForm from './RaffleForm';
  * open in place, still fullscreen, and this Control Center moves with them.
  * `onWall` says whether this raffle's main screen is the one on the wall.
  */
+/** Listed in the set order: every ordinary raffle, and the pre-draws put in a set. */
+const inSets = (raffle) => !raffle.is_predraw || Boolean(raffle.draw_set);
+
 function RaffleSwitcher({ raffleId, raffleName, setupKey, onWall, busy, onChanged }) {
     const navigate = useNavigate();
     const toast = useToast();
@@ -57,7 +60,7 @@ function RaffleSwitcher({ raffleId, raffleName, setupKey, onWall, busy, onChange
         setFileFilter(value);
         if (!value) return;
         // The file's first raffle still to draw is the one lined up next.
-        const inFile = inDrawingOrder((raffles ?? []).filter((raffle) => String(raffle.raffle_file_id) === value && !raffle.is_predraw));
+        const inFile = inDrawingOrder((raffles ?? []).filter((raffle) => String(raffle.raffle_file_id) === value && inSets(raffle)));
         const next = inFile.find((raffle) => !['COMPLETED', 'CANCELLED'].includes(raffle.status)) ?? inFile[0];
         if (next) setChosen(String(next.id));
     };
@@ -71,7 +74,7 @@ function RaffleSwitcher({ raffleId, raffleName, setupKey, onWall, busy, onChange
         setSearchParams(next, { replace: true });
     }, [searchParams, setSearchParams]);
 
-    const setupQuery = setupKey === 'one' ? '?setup=one' : '';
+    const setupQuery = setupKey === 'three' ? '?setup=three' : '';
     const current = String(chosen) === String(raffleId);
     const close = useCallback(() => setPanel(null), []);
 
@@ -112,15 +115,15 @@ function RaffleSwitcher({ raffleId, raffleName, setupKey, onWall, busy, onChange
                         disabled={raffles === null}
                     >
                         {raffles === null && <option value={raffleId}>Loading raffles…</option>}
-                        {/* The ordinary raffles by set (First Set, Second Set, …), then the pre-draws in a group of their own. */}
+                        {/* The raffles by set (First Set, Second Set, …) — pre-draws put in a set among them, in playing order — then the pre-draws in no set, in a group of their own. */}
                         {[
-                            ...groupBySet(listed.filter((raffle) => !raffle.is_predraw), 'Raffles'),
-                            { set: 'predraw', label: 'Pre-drawn', raffles: listed.filter((raffle) => raffle.is_predraw) },
+                            ...groupBySet(listed.filter(inSets), 'Raffles'),
+                            { set: 'predraw', label: 'Pre-drawn', raffles: listed.filter((raffle) => !inSets(raffle)) },
                         ].map((group) => group.raffles.length > 0 && (
-                            <optgroup key={group.set ?? 'none'} label={group.label}>
+                            <optgroup key={`${group.day ?? 'none'}/${group.set ?? 'none'}`} label={group.label}>
                                 {group.raffles.map((raffle) => (
                                     <option key={raffle.id} value={raffle.id}>
-                                        {raffle.name} · {raffle.status}{String(raffle.id) === String(raffleId) ? ' (this one)' : ''}
+                                        {raffle.name} · {raffle.status}{raffle.is_predraw && group.set !== 'predraw' ? ' · Pre-draw' : ''}{raffle.is_locked ? ' 🔒' : ''}{String(raffle.id) === String(raffleId) ? ' (this one)' : ''}
                                     </option>
                                 ))}
                             </optgroup>
@@ -177,7 +180,7 @@ function RaffleSwitcher({ raffleId, raffleName, setupKey, onWall, busy, onChange
                         // Straight into the new raffle's Control Center — on its
                         // participants, unless it came with the file's.
                         const needsParticipants = !raffle.participants_count;
-                        navigate(`/raffle/${raffle.id}/control${setupKey === 'one' ? '?setup=one' : ''}${needsParticipants ? `${setupKey === 'one' ? '&' : '?'}panel=participants` : ''}`);
+                        navigate(`/raffle/${raffle.id}/control${setupKey === 'three' ? '?setup=three' : ''}${needsParticipants ? `${setupKey === 'one' ? '&' : '?'}panel=participants` : ''}`);
                     }}
                 />
             </ControlDrawer>

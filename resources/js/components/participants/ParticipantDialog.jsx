@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { InlineSpinner } from '../ui/LoadingState';
 
-const BLANK = { ticket_number: '', name: '', email: '', phone: '', category: '', developers: '', status: 'ACTIVE' };
+const BLANK = { ticket_number: '', name: '', email: '', phone: '', category: '', developers: '', location: '', status: 'ACTIVE' };
 
 export default function ParticipantDialog({ open, participant, errors = {}, busy, onSave, onClose }) {
     const [form, setForm] = useState(BLANK);
@@ -19,6 +19,7 @@ export default function ParticipantDialog({ open, participant, errors = {}, busy
                 phone: participant.phone ?? '',
                 category: participant.category ?? '',
                 developers: (participant.developers ?? []).join(' | '),
+                location: participant.location ?? '',
                 status: participant.status ?? 'ACTIVE',
             }
             : BLANK);
@@ -35,6 +36,7 @@ export default function ParticipantDialog({ open, participant, errors = {}, busy
             phone: form.phone || null,
             category: form.category || null,
             developers: form.developers.split('|').map((name) => name.trim()).filter(Boolean),
+            location: form.location.trim() || null,
         });
     };
 
@@ -144,6 +146,19 @@ export default function ParticipantDialog({ open, participant, errors = {}, busy
                                     placeholder="Cebu Landmasters | Filinvest"
                                 />
                                 {errors.developers && <p className="mt-1.5 text-xs text-red-300">{errors.developers[0]}</p>}
+                            </div>
+
+                            <div>
+                                <label className="label" htmlFor="participant_location">Location</label>
+                                <input
+                                    id="participant_location"
+                                    className="input"
+                                    maxLength={120}
+                                    value={form.location}
+                                    onChange={(event) => set('location', event.target.value)}
+                                    placeholder="Cebu"
+                                />
+                                {errors.location && <p className="mt-1.5 text-xs text-red-300">{errors.location[0]}</p>}
                             </div>
 
                             <div>

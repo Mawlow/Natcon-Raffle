@@ -1,56 +1,72 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Building2, Layers, Loader2, Tag, Users } from 'lucide-react';
+import { Building2, Layers, Loader2, MapPin, Tag, Users } from 'lucide-react';
 import api from '../../lib/api';
 import { formatNumber } from '../../lib/format';
 
 /*
- * Choosing who can win: everyone, only some tags, only some developers, or
- * both — participants with one of the chosen tags AND one of the chosen
- * developers. Used by the raffle-wide "Who can win" panel and by each prize
- * in the prize list. `value` is null (everyone), { type: 'tag'|'developer',
- * values }, or { type: 'both', tags, developers }.
+ * Choosing who can win: everyone, only some tags, only some developers, only
+ * some locations, or a combination — participants with one of the chosen
+ * tags AND one of the chosen developers AND one of the chosen locations,
+ * whichever lists are picked. Used by the raffle-wide "Who can win" panel
+ * and by each prize in the prize list. `value` is null (everyone),
+ * { type: 'tag'|'developer'|'location', values }, or
+ * { type: 'both', tags?, developers?, locations? }.
  */
 const TAGS = { key: 'tags', noun: 'tag', title: 'Tags', empty: 'No tags were imported. Add a "Tag" column to the participants CSV.' };
 const DEVELOPERS = { key: 'developers', noun: 'developer', title: 'Developers', empty: 'No developers were imported. Add a "Qualified Developers" column to the participants CSV, with developers separated by |.' };
+const LOCATIONS = { key: 'locations', noun: 'location', title: 'Locations', empty: 'No locations were imported. Add a "Location" column to the participants CSV (e.g. Cebu, Davao).' };
+
+/** Each single-list mode with the list it picks from. */
+const LISTS = { tag: TAGS, developer: DEVELOPERS, location: LOCATIONS };
 
 const MODES = [
     { key: 'all', label: 'Everyone', icon: Users, lists: [] },
     { key: 'tag', label: 'By tag', icon: Tag, lists: [TAGS] },
     { key: 'developer', label: 'By developer', icon: Building2, lists: [DEVELOPERS] },
-    { key: 'both', label: 'Tag + developer', icon: Layers, lists: [TAGS, DEVELOPERS] },
+    { key: 'location', label: 'By location', icon: MapPin, lists: [LOCATIONS] },
+    { key: 'both', label: 'Combine', icon: Layers, lists: [TAGS, DEVELOPERS, LOCATIONS] },
 ];
 
-/** The tags and developers picked in `value`, whatever its type. */
+/** The tags, developers and locations picked in `value`, whatever its type. */
 export function poolPicks(value) {
-    return {
-        tags: value?.type === 'tag' ? value.values : value?.type === 'both' ? value.tags ?? [] : [],
-        developers: value?.type === 'developer' ? value.values : value?.type === 'both' ? value.developers ?? [] : [],
-    };
+    const picks = { tags: [], developers: [], locations: [] };
+    if (!value) return picks;
+    if (value.type === 'both') {
+        Object.keys(picks).forEach((key) => { picks[key] = value[key] ?? []; });
+    } else if (LISTS[value.type]) {
+        picks[LISTS[value.type].key] = value.values ?? [];
+    }
+    return picks;
 }
 
 /** The pool for a mode and its picks: null when nothing is picked. */
-function poolFor(mode, { tags, developers }) {
-    if (mode === 'tag') return tags.length ? { type: 'tag', values: tags } : null;
-    if (mode === 'developer') return developers.length ? { type: 'developer', values: developers } : null;
-    if (mode === 'both') return tags.length || developers.length ? { type: 'both', tags, developers } : null;
+function poolFor(mode, picks) {
+    if (LISTS[mode]) {
+        const values = picks[LISTS[mode].key];
+        return values.length ? { type: mode, values } : null;
+    }
+    if (mode === 'both') {
+        const chosen = Object.fromEntries(Object.entries(picks).filter(([, list]) => list.length));
+        return Object.keys(chosen).length ? { type: 'both', ...chosen } : null;
+    }
     return null;
 }
 
-/** "Everyone", "Tag: ELITE", "Tag: ELITE + Developer: Filinvest". */
+/** "Everyone", "Tag: ELITE", "Tag: ELITE + Developer: Filinvest + Location: Cebu". */
 export function poolSummary(value) {
-    const { tags, developers } = poolPicks(value);
+    const { tags, developers, locations } = poolPicks(value);
     const part = (noun, list) => (list.length ? `${noun}${list.length === 1 ? '' : 's'}: ${list.join(', ')}` : null);
-    return [part('Tag', tags), part('Developer', developers)].filter(Boolean).join(' + ') || 'Everyone';
+    return [part('Tag', tags), part('Developer', developers), part('Location', locations)].filter(Boolean).join(' + ') || 'Everyone';
 }
 
-/** The raffle's tags and developers with their ticket counts; `reloadKey` refreshes them. */
+/** The raffle's tags, developers and locations with their ticket counts; `reloadKey` refreshes them. */
 export function usePoolGroups(raffleId, reloadKey) {
     const [groups, setGroups] = useState(null);
 
     const reload = useCallback(() => (
         api.get(`/raffles/${raffleId}/participants/groups`)
             .then(({ data }) => setGroups(data.data))
-            .catch(() => setGroups({ tags: [], developers: [] }))
+            .catch(() => setGroups({ tags: [], developers: [], locations: [] }))
     ), [raffleId]);
 
     useEffect(() => { reload(); }, [reload, reloadKey]);
@@ -62,8 +78,8 @@ export default function PoolPicker({ value, onChange, groups, disabled }) {
     // The tab can differ from the value: picking "By developer" shows the
     // list, but everyone stays in until a developer is chosen.
     const [mode, setMode] = useState(value?.type ?? 'all');
-    // "Tag + developer" with only one list picked is saved as that list
-    // alone; the tab stays on "Tag + developer" so the other list can follow.
+    // "Combine" with only one list picked is saved as that list alone; the
+    // tab stays on "Combine" so the other lists can follow.
     useEffect(() => {
         if (value) setMode((current) => (current === 'both' && value.type !== 'all' ? current : value.type));
     }, [value?.type]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,7 +87,7 @@ export default function PoolPicker({ value, onChange, groups, disabled }) {
     const picks = poolPicks(value);
 
     // Switching keeps what still applies — tags picked by tag stay picked
-    // under "Tag + developer" — and drops what the new mode hides.
+    // under "Combine" — and drops what the new mode hides.
     const chooseMode = (key) => {
         setMode(key);
         const next = poolFor(key, picks);
@@ -88,7 +104,7 @@ export default function PoolPicker({ value, onChange, groups, disabled }) {
 
     return (
         <div>
-            <div className="grid grid-cols-2 gap-1 rounded-lg border border-line bg-black/40 p-1 sm:grid-cols-4" role="radiogroup" aria-label="Who can win">
+            <div className="grid grid-cols-2 gap-1 rounded-lg border border-line bg-black/40 p-1 sm:grid-cols-5" role="radiogroup" aria-label="Who can win">
                 {MODES.map(({ key, label, icon: Icon }) => (
                     <button
                         key={key}
@@ -109,7 +125,7 @@ export default function PoolPicker({ value, onChange, groups, disabled }) {
 
             {mode === 'both' && (
                 <p className="mt-4 text-xs text-muted-dim">
-                    Only participants with one of the chosen tags <strong className="text-white/80">and</strong> one of the chosen developers can win.
+                    Pick from any of the lists. Only participants matching one of the chosen tags <strong className="text-white/80">and</strong> one of the chosen developers <strong className="text-white/80">and</strong> one of the chosen locations can win — a list left empty is not applied.
                 </p>
             )}
 

@@ -8,7 +8,7 @@ import { AmountInput } from './RaffleForm';
  * The prize list for a raffle being made: each prize with its number of
  * winners and who can win it, drawn top to bottom. Like the Control Center's
  * Prizes panel, but for a raffle not saved yet — the rows go up with it.
- * `groups` are the tags and developers to choose from.
+ * `groups` are the tags, developers and locations to choose from.
  */
 let nextKey = 0;
 

@@ -59,11 +59,16 @@ function measureDarkInk(src) {
  * black stage, sit on a soft light plate:
  * any logo the catalogue tags `tone: 'dark'`, and any other whose pixels
  * turn out to be mostly dark. Light logos sit bare, as before. `measure`
- * is off for the NATCON logo, which is known to read on black.
+ * is off for the NATCON logo, which is known to read on black. A logo the
+ * catalogue tags `outline` (a deep blue wordmark that sinks into the black
+ * stage) is drawn with a thin white edge all round, so it reads from the floor.
  */
-export default function StageLogo({ src, alt, tone, stageSrc, measure = true }) {
+export default function StageLogo({ src, alt, tone, stageSrc, measure = true, outline = false }) {
     const tagged = tone === 'dark' && !stageSrc;
     const [darkInk, setDarkInk] = useState(false);
+    // Eight white shadows at one stroke's distance make a clean edge round
+    // the artwork, whatever its shape; the stroke grows with the screen.
+    const edge = outline ? { filter: OUTLINE_FILTER } : undefined;
 
     useEffect(() => {
         if (tagged || stageSrc || !measure || !src) return undefined;
@@ -77,7 +82,7 @@ export default function StageLogo({ src, alt, tone, stageSrc, measure = true }) 
     }, [src, tagged, stageSrc, measure]);
 
     if (stageSrc) {
-        return <img src={stageSrc} alt={alt} className="block h-full w-full object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" />;
+        return <img src={stageSrc} alt={alt} className={`block h-full w-full object-contain ${outline ? '' : 'drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]'}`} style={edge} />;
     }
 
     if (tagged || darkInk) {
@@ -86,10 +91,15 @@ export default function StageLogo({ src, alt, tone, stageSrc, measure = true }) 
                 className="grid h-full w-full place-items-center rounded-[12%/26%] bg-[#f4efe2] shadow-[0_8px_30px_rgba(0,0,0,0.45)] ring-1 ring-gold/40"
                 style={{ padding: '8% 7%' }}
             >
-                <img src={src} alt={alt} className="block h-full w-full object-contain" />
+                <img src={src} alt={alt} className="block h-full w-full object-contain" style={edge} />
             </span>
         );
     }
 
-    return <img src={src} alt={alt} className="block h-full w-full object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" />;
+    return <img src={src} alt={alt} className={`block h-full w-full object-contain ${outline ? '' : 'drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]'}`} style={edge} />;
 }
+
+const STROKE = 'clamp(1.5px, 0.22vh, 5px)';
+const OUTLINE_FILTER = [
+    [1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7],
+].map(([x, y]) => `drop-shadow(calc(${STROKE} * ${x}) calc(${STROKE} * ${y}) 0 #fff)`).join(' ');

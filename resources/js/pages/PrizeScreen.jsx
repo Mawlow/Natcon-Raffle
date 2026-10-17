@@ -9,6 +9,9 @@ import { useLogoSizes } from '../lib/logoSizes';
 import { useWallSwitch } from '../lib/wallSwitch';
 import LedPanel from '../components/display/LedPanel';
 import LogoRow from '../components/display/LogoRow';
+import { CornerLogoRow } from '../components/display/ShowcaseHeader';
+import { CompanyRow } from '../components/display/SingleScreenHeader';
+import PrizeStage from '../components/display/PrizeStage';
 import { Diamond } from '../components/landing/EventScene';
 
 /**
@@ -88,9 +91,18 @@ export function PrizeBody({ raffle, sizes }) {
 
     return (
         <>
-            {/* The NATCON logo and the company logos pinned to the
-                top centre; the title and prize fill the space beneath. */}
-            <LogoRow logos={raffle.logos ?? []} sizes={sizes} />
+            {/* The NATCON logo and the company logos pinned to the top
+                centre — or, with corner logos, one top left and one top right
+                either side of NATCON and the company logos beneath; the title
+                and prize fill the space below. */}
+            {raffle.logo_left || raffle.logo_right ? (
+                <div className="flex w-full flex-col items-center">
+                    <CornerLogoRow left={raffle.logo_left} right={raffle.logo_right} sizes={sizes} />
+                    {raffle.logos?.length > 0 && <CompanyRow logos={raffle.logos} sizes={sizes} />}
+                </div>
+            ) : (
+                <LogoRow logos={raffle.logos ?? []} sizes={sizes} />
+            )}
 
             <div className="flex w-full flex-1 flex-col items-center justify-center">
                 <motion.div
@@ -120,12 +132,129 @@ export function PrizeBody({ raffle, sizes }) {
                     </motion.h1>
                 )}
 
-                {/* Nothing until the prize is set in the Control Center. */}
-                {raffle.prize_name && (raffle.prize_type === 'item'
-                    ? <ItemPrize name={raffle.prize_name} value={prizeValue} />
-                    : <CashPrize name={raffle.prize_name} value={prizeValue} />)}
+                <PrizeWithPhoto raffle={raffle} />
             </div>
         </>
+    );
+}
+
+/**
+ * The prize itself: its photo — the brand new car — staged large like a
+ * poster render when one is saved (see PrizeStage), and the glowing prize
+ * frame beneath. Nothing until the prize is set.
+ */
+export function PrizeWithPhoto({ raffle }) {
+    return (
+        <>
+            {raffle.prize_name && raffle.prize_image && <PrizeStage src={raffle.prize_image} alt={raffle.prize_name} />}
+            <PrizeLine raffle={raffle} />
+        </>
+    );
+}
+
+/**
+ * The glowing prize frame alone: the item, or the cash amount. Nothing until
+ * the prize is set. `bare` drops the frame for the marquee lettering of the
+ * Prize Display (see BarePrize).
+ */
+export function PrizeLine({ raffle, bare = false }) {
+    const prizeValue = formatPrizeValue(raffle.prize_value, raffle.prize_currency);
+
+    if (!raffle.prize_name) return null;
+
+    if (bare) {
+        const text = raffle.prize_type === 'item' || !prizeValue ? raffle.prize_name : `${prizeValue} CASH PRIZE`;
+
+        return <BarePrize name={text} value={raffle.prize_type === 'item' ? prizeValue : null} />;
+    }
+
+    return raffle.prize_type === 'item'
+        ? <ItemPrize name={raffle.prize_name} value={prizeValue} />
+        : <CashPrize name={raffle.prize_name} value={prizeValue} />;
+}
+
+/**
+ * The prize as marquee lettering with no box around it: the name in gold
+ * foil with a light passing through the letters, a hairline running out
+ * from each side with a small diamond at its end, a glowing rule beneath,
+ * and the value (if any) in script under that.
+ */
+function BarePrize({ name, value }) {
+    const ease = [0.22, 1, 0.36, 1];
+
+    return (
+        <div className="flex w-full flex-col items-center">
+            {/* The event's name above the prize, half the prize's size. */}
+            <motion.p
+                initial={{ opacity: 0, y: 8, letterSpacing: '0.4em' }}
+                animate={{ opacity: 1, y: 0, letterSpacing: '0.28em' }}
+                transition={{ duration: 1.1, delay: 0.3, ease }}
+                className="prize-shine mb-[0.9cqw] shrink-0 pl-[0.28em] text-center font-lux font-bold uppercase leading-none"
+                style={{ fontSize: 'min(2.7cqw, 5cqh)' }}
+            >
+                NATCON Raffle
+            </motion.p>
+            <div className="flex w-full items-center justify-center gap-[1.6cqw]">
+                <motion.span
+                    aria-hidden="true"
+                    initial={{ opacity: 0, scaleX: 0 }}
+                    animate={{ opacity: 1, scaleX: 1 }}
+                    transition={{ duration: 1.1, delay: 0.7, ease }}
+                    className="flex min-w-0 flex-1 origin-right items-center justify-end gap-[0.6cqw]"
+                    style={{ maxWidth: '22cqw' }}
+                >
+                    <span className="h-px flex-1 bg-gradient-to-r from-transparent via-gold/50 to-gold" />
+                    <Diamond />
+                </motion.span>
+
+                <motion.p
+                    initial={{ opacity: 0, y: 10, letterSpacing: '0.3em' }}
+                    animate={{ opacity: 1, y: 0, letterSpacing: '0.16em' }}
+                    transition={{ duration: 1.1, delay: 0.5, ease }}
+                    className="prize-shine shrink-0 text-balance pl-[0.16em] text-center font-lux font-bold uppercase leading-[1.05]"
+                    style={{ fontSize: 'min(5.4cqw, 10cqh)', maxWidth: '72cqw' }}
+                >
+                    {name}
+                </motion.p>
+
+                <motion.span
+                    aria-hidden="true"
+                    initial={{ opacity: 0, scaleX: 0 }}
+                    animate={{ opacity: 1, scaleX: 1 }}
+                    transition={{ duration: 1.1, delay: 0.7, ease }}
+                    className="flex min-w-0 flex-1 origin-left items-center gap-[0.6cqw]"
+                    style={{ maxWidth: '22cqw' }}
+                >
+                    <Diamond />
+                    <span className="h-px flex-1 bg-gradient-to-l from-transparent via-gold/50 to-gold" />
+                </motion.span>
+            </div>
+
+            {/* A glowing rule beneath the lettering, like the floor line under the prize. */}
+            <motion.span
+                aria-hidden="true"
+                initial={{ opacity: 0, scaleX: 0.3 }}
+                animate={{ opacity: [0.7, 1, 0.7], scaleX: 1 }}
+                transition={{ opacity: { duration: 3.2, repeat: Infinity, ease: 'easeInOut' }, scaleX: { duration: 1.2, delay: 0.8, ease } }}
+                className="mt-[1.2cqh] h-px w-[36cqw]"
+                style={{
+                    background: 'linear-gradient(90deg, transparent, rgba(255,232,160,0.9) 30%, rgba(255,244,210,1) 50%, rgba(255,232,160,0.9) 70%, transparent)',
+                    boxShadow: '0 0 10px 2px rgba(255,220,120,0.45), 0 0 28px 6px rgba(212,175,55,0.25)',
+                }}
+            />
+
+            {value && (
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 1 }}
+                    className="prize-gradient mt-[1.2cqh] font-script font-semibold italic"
+                    style={{ fontSize: 'min(2.7cqw, 5.1cqh)' }}
+                >
+                    worth {value}
+                </motion.p>
+            )}
+        </div>
     );
 }
 
@@ -136,7 +265,7 @@ function PrizeFrame({ children, className = '' }) {
             initial={{ opacity: 0, y: 8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.9, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className={`relative mt-[4cqh] ${className}`}
+            className={`relative mt-[1.5cqh] ${className}`}
         >
             <motion.span
                 aria-hidden="true"

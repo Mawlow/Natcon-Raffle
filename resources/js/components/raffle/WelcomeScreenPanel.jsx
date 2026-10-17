@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Sparkles, Trophy } from 'lucide-react';
+import { Sparkles, Trophy, UserRound } from 'lucide-react';
 
 /**
  * The welcome screen inside a raffle's Control Center: the landing page's
@@ -11,8 +11,19 @@ import { Sparkles, Trophy } from 'lucide-react';
  */
 function WelcomeScreenPanel({ main, mainConnected, midDraw, post }) {
     const welcome = Boolean(mainConnected && main?.welcome);
+    // Which screen is up: 'landing', 'cli' or 'draw'.
+    const style = main?.welcomeStyle ?? 'landing';
+    const shown = welcome ? style : 'draw';
 
-    const setMode = useCallback((on) => post({ type: 'command', action: 'welcome', on }), [post]);
+    // The welcome screens each set their style, then go up.
+    const setMode = useCallback((value) => {
+        if (value === 'draw') {
+            post({ type: 'command', action: 'welcome', on: false });
+            return;
+        }
+        post({ type: 'command', action: 'welcome-style', style: value });
+        post({ type: 'command', action: 'welcome', on: true });
+    }, [post]);
     const day = mainConnected ? main?.welcomeDay ?? 'both' : null;
     const setDay = useCallback((value) => post({ type: 'command', action: 'welcome-day', day: value }), [post]);
 
@@ -28,17 +39,17 @@ function WelcomeScreenPanel({ main, mainConnected, midDraw, post }) {
             </p>
 
             {/* What the main screen shows */}
-            <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg border border-line bg-black/40 p-1" role="radiogroup" aria-label="Main screen shows">
-                {[[true, 'Welcome screen', Sparkles], [false, 'Raffle draw', Trophy]].map(([value, label, Icon]) => (
+            <div className="mt-4 grid grid-cols-3 gap-1 rounded-lg border border-line bg-black/40 p-1" role="radiogroup" aria-label="Main screen shows">
+                {[['landing', 'Welcome screen', Sparkles], ['cli', 'CLI standby', UserRound], ['draw', 'Raffle draw', Trophy]].map(([value, label, Icon]) => (
                     <button
                         key={label}
                         type="button"
                         role="radio"
-                        aria-checked={welcome === value}
+                        aria-checked={shown === value}
                         onClick={() => setMode(value)}
-                        disabled={!mainConnected || (value && midDraw)}
-                        className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition disabled:opacity-40 ${
-                            welcome === value ? 'bg-gold text-black' : 'text-muted hover:text-white'
+                        disabled={!mainConnected || (value !== 'draw' && midDraw)}
+                        className={`flex items-center justify-center gap-2 rounded-md px-2 py-2 text-sm font-semibold transition disabled:opacity-40 ${
+                            shown === value ? 'bg-gold text-black' : 'text-muted hover:text-white'
                         }`}
                     >
                         <Icon size={15} />
@@ -46,6 +57,10 @@ function WelcomeScreenPanel({ main, mainConnected, midDraw, post }) {
                     </button>
                 ))}
             </div>
+
+            {shown === 'cli' && (
+                <p className="mt-3 text-xs text-muted">The logos across the top and the CLI graphic in the middle, with no dates. Swap the picture by replacing <span className="text-white">public/images/cli-standby.png</span>.</p>
+            )}
 
             {/* The date under the headline */}
             <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-muted-dim">Date shown</p>

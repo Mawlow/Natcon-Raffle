@@ -7,6 +7,7 @@ use App\Enums\RaffleStatus;
 use App\Models\Participant;
 use App\Models\Raffle;
 use App\Models\RaffleFile;
+use App\Models\Winner;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -93,8 +94,146 @@ class RaffleFileService
         $this->imports->import($raffle, $csv, $user, 'update', keepStatus: true);
 
         // Someone marked absent or disqualified in the file's other raffles
-        // starts that way here too.
+        // starts that way here too, and whoever already won one of them is
+        // shown as a winner: everyone in a file wins once.
         $this->copySharedStatuses($raffleFile, $raffle);
+        $raffle->markTicketsWon(array_unique(array_merge($raffle->ticketsWonAround(), $raffle->stagedTicketsAround())));
+    }
+
+    /**
+     * Works out again which tickets each of the file's participant lists
+     * shows as winners — after a raffle changes day, or starts or stops
+     * keeping its winners out for the event. A ticket is a winner in a list
+     * when it won that raffle, or won (or is pre-selected) in a raffle
+     * sharing its people that day, or in a raffle whose winners sit out the
+     * whole event. Disqualified, absent and excluded stay as they are.
+     */
+    public function resyncWinnerMarks(RaffleFile $raffleFile): void
+    {
+        foreach ($raffleFile->raffles()->get() as $raffle) {
+            $winners = array_values(array_unique(array_merge(
+                $raffle->winners()->pluck('ticket_number')->all(),
+                $raffle->stagedTicketNumbers(),
+                $raffle->stagedTicketsAround(exceptSelf: true),
+                $raffle->ticketsWonAround(),
+            )));
+
+            $raffle->participants()
+                ->where('status', ParticipantStatus::Winner->value)
+                ->when($winners !== [], fn ($q) => $q->whereNotIn('ticket_number', $winners))
+                ->update(['status' => ParticipantStatus::Active->value, 'updated_at' => now()]);
+
+            foreach (array_chunk($winners, 500) as $chunk) {
+                $raffle->participants()
+                    ->where('status', ParticipantStatus::Active->value)
+                    ->whereIn('ticket_number', $chunk)
+                    ->update(['status' => ParticipantStatus::Winner->value, 'updated_at' => now()]);
+            }
+        }
+    }
+
+    /**
+     * A day in numbers. Every raffle in the file carries the same people, so
+     * one of the day's raffles stands for the list; with none, a raffle of
+     * the file does (its winners are then nobody's).
+     *
+     * @return array{day: int, rule: string, raffles: int, winners: int, winners_people: int, participants: int, remaining: int, never_won: int, kept_out: int}
+     */
+    public function dayStats(RaffleFile $raffleFile, int $day): array
+    {
+        $dayRaffles = $raffleFile->raffles()->notArchived()->where('draw_day', $day)->get();
+        $inFile = $raffleFile->raffles()->notArchived()->get();
+        $rep = $dayRaffles->first(fn (Raffle $raffle) => $raffle->participants()->exists())
+            ?? $inFile->first(fn (Raffle $raffle) => $raffle->participants()->exists());
+
+        $winners = Winner::query()->whereIn('raffle_id', $dayRaffles->pluck('id'));
+        $wonToday = (clone $winners)->distinct()->pluck('ticket_number')->all();
+        $stagedToday = $dayRaffles->flatMap(fn (Raffle $raffle) => $raffle->stagedTicketNumbers())->unique()->values()->all();
+        // Won so far: on this day or an earlier one. A later day's lists do
+        // not count against this day (Day 2's pre-draws take nobody out of Day 1).
+        $upToDay = $inFile->filter(fn (Raffle $raffle) => $raffle->draw_day === null || $raffle->draw_day <= $day);
+        $wonEver = Winner::query()->whereIn('raffle_id', $upToDay->pluck('id'))->distinct()->pluck('ticket_number')->all();
+        $stagedEver = $upToDay->flatMap(fn (Raffle $raffle) => $raffle->stagedTicketNumbers())->unique()->values()->all();
+        $keptOut = $rep ? array_values(array_unique(array_merge($rep->ticketsKeptOut(), $rep->winners_out_for_event ? $rep->winners()->pluck('ticket_number')->all() : []))) : [];
+
+        $people = $rep ? $rep->participants()->whereNotIn('status', ParticipantStatus::ineligible()) : null;
+        $count = fn (array $out) => $people ? (clone $people)->whereNotIn('ticket_number', $out)->count() : 0;
+
+        return [
+            'day' => $day,
+            'rule' => $raffleFile->dayRule($day),
+            'raffles' => $dayRaffles->count(),
+            // Wins given out that day, and how many different people won them.
+            'winners' => (clone $winners)->count(),
+            'winners_people' => count($wonToday),
+            'participants' => $people ? (clone $people)->count() : 0,
+            // Still to win: nobody who has won or is on a list on this day or
+            // an earlier one, nor a big-prize winner. Who the day's draws pick
+            // from first, unless its rule is "everyone".
+            'remaining' => $count(array_unique(array_merge($wonEver, $stagedEver, $keptOut))),
+            'never_won' => $count(array_unique(array_merge($wonEver, $stagedEver, $keptOut))),
+            // How many different people have won something in the event, up to this day.
+            'won_people' => count(array_unique(array_merge($wonEver, $stagedEver))),
+            // Still to win this day only (its own wins and lists).
+            'remaining_today' => $count(array_unique(array_merge($wonToday, $stagedToday, $keptOut))),
+            'kept_out' => count($keptOut),
+        ];
+    }
+
+    /**
+     * The people of the event by what they have won, for a day's download:
+     * `remaining` are still to win anything (and not out for the event);
+     * `won` have won something, any day, each with what — "Raffle name ·
+     * prize (Day 1)" per win, pre-selected lists included.
+     *
+     * @return array{remaining: \Illuminate\Database\Eloquent\Collection<int, Participant>, won: \Illuminate\Database\Eloquent\Collection<int, Participant>, wins: array<string, array<int, string>>}
+     */
+    public function dayPeople(RaffleFile $raffleFile, int $day): array
+    {
+        $inFile = $raffleFile->raffles()->notArchived()->get();
+        $rep = $inFile->first(fn (Raffle $raffle) => $raffle->draw_day === $day && $raffle->participants()->exists())
+            ?? $inFile->first(fn (Raffle $raffle) => $raffle->participants()->exists());
+
+        if ($rep === null) {
+            return ['remaining' => Participant::query()->whereRaw('1 = 0')->get(), 'won' => Participant::query()->whereRaw('1 = 0')->get(), 'wins' => []];
+        }
+
+        $byId = $inFile->keyBy('id');
+        $label = fn (Raffle $raffle, ?string $prize) => trim($raffle->name.' · '.($prize ?: ($raffle->prize_name ?? 'prize'))).($raffle->draw_day ? sprintf(' (Day %d)', $raffle->draw_day) : '');
+
+        $wins = [];
+        // Wins up to this day decide who is still to win; later days' wins are listed but take nobody out.
+        $wonUpToDay = [];
+        $upTo = fn (Raffle $raffle) => $raffle->draw_day === null || $raffle->draw_day <= $day;
+        Winner::query()->whereIn('raffle_id', $inFile->pluck('id'))->with('prize')->orderBy('drawn_at')->get()
+            ->each(function (Winner $winner) use (&$wins, &$wonUpToDay, $byId, $label, $upTo) {
+                $wins[$winner->ticket_number][] = $label($byId[$winner->raffle_id], $winner->prize_name ?? $winner->prize?->prize_name);
+                if ($upTo($byId[$winner->raffle_id])) {
+                    $wonUpToDay[$winner->ticket_number] = true;
+                }
+            });
+        foreach ($inFile as $raffle) {
+            $drawn = Winner::query()->where('raffle_id', $raffle->id)->pluck('ticket_number')->all();
+            foreach ($raffle->stagedWinners() as $entry) {
+                $ticket = Participant::query()->whereKey($entry['participant_id'])->value('ticket_number');
+                if ($ticket !== null && ! in_array($ticket, $drawn, true)) {
+                    $wins[$ticket][] = $label($raffle, $entry['prize_name'] ?? null).' — pre-selected';
+                    if ($upTo($raffle)) {
+                        $wonUpToDay[$ticket] = true;
+                    }
+                }
+            }
+        }
+        $keptOut = array_values(array_unique(array_merge($rep->ticketsKeptOut(), $rep->winners_out_for_event ? $rep->winners()->pluck('ticket_number')->all() : [])));
+
+        $people = $rep->participants()->whereNotIn('status', ParticipantStatus::ineligible())->orderBy('ticket_number');
+        $wonTickets = array_keys($wins);
+
+        return [
+            'remaining' => (clone $people)->whereNotIn('ticket_number', array_unique(array_merge(array_keys($wonUpToDay), $keptOut)))->get(),
+            'won' => (clone $people)->whereIn('ticket_number', $wonTickets)->get(),
+            'wins' => $wins,
+        ];
     }
 
     /**
@@ -119,15 +258,16 @@ class RaffleFileService
     }
 
     /**
-     * The file's tags and developers with how many people carry each — the
-     * choices for "who can win" while a raffle is made, before it exists.
+     * The file's tags, developers and locations with how many people carry
+     * each — the choices for "who can win" while a raffle is made, before it exists.
      *
-     * @return array{tags: array<int, array>, developers: array<int, array>}
+     * @return array{tags: array<int, array>, developers: array<int, array>, locations: array<int, array>}
      */
     public function poolOptions(RaffleFile $raffleFile): array
     {
         $tags = [];
         $developers = [];
+        $locations = [];
 
         $csv = $this->storedCsv($raffleFile);
 
@@ -144,6 +284,10 @@ class RaffleFileService
                 foreach ((array) $row['developers'] as $developer) {
                     $developers[$developer] = ($developers[$developer] ?? 0) + 1;
                 }
+
+                if (filled($row['location'])) {
+                    $locations[$row['location']] = ($locations[$row['location']] ?? 0) + 1;
+                }
             }
         }
 
@@ -154,7 +298,7 @@ class RaffleFileService
             ->values()
             ->all();
 
-        return ['tags' => $shape($tags), 'developers' => $shape($developers)];
+        return ['tags' => $shape($tags), 'developers' => $shape($developers), 'locations' => $shape($locations)];
     }
 
     protected function storedCsv(RaffleFile $raffleFile): ?UploadedFile

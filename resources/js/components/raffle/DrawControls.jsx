@@ -46,34 +46,35 @@ export default function DrawControls({ raffle, eligibleCount, busy, onTransition
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-gold"
-                    >
-                        <SlidersHorizontal size={15} />
-                        Control Center · 3 screens
-                    </a>
-                    <a
-                        href={`/raffle/${raffle.id}/control?setup=one`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-outline"
                         title="One screen shows everything: logos, title, prize, the draw and the winners"
                     >
                         <SlidersHorizontal size={15} />
-                        Control Center · 1 screen
+                        Control Center
                     </a>
                     <a
-                        href={`/raffle/${raffle.id}/display`}
+                        href={`/raffle/${raffle.id}/control?setup=three`}
                         target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-ghost"
+                        title="The three-screen wall: a main screen plus the winner and prize sub screens"
+                    >
+                        <SlidersHorizontal size={15} />
+                        3 screens
+                    </a>
+                    <a
+                        href={`/raffle/${raffle.id}/single`}
+                        target="natcon-main"
                         rel="noreferrer"
                         className="btn btn-outline"
                     >
                         <ExternalLink size={15} />
-                        Open display
+                        Open main screen
                     </a>
                     {/* Same screen without the draw controls, for a projector
                         someone else is driving. */}
                     <a
                         href={`/raffle/${raffle.id}/display?view`}
-                        target="_blank"
+                        target="natcon-view"
                         rel="noreferrer"
                         className="btn btn-ghost"
                         title="Opens the display with no draw controls"
@@ -86,7 +87,7 @@ export default function DrawControls({ raffle, eligibleCount, busy, onTransition
                         company logo, raffle title and prize. */}
                     <a
                         href={`/raffle/${raffle.id}/winner`}
-                        target="_blank"
+                        target="natcon-winner"
                         rel="noreferrer"
                         className="btn btn-ghost"
                         title="Winner sub screen (12×7): the winning ticket"
@@ -96,7 +97,7 @@ export default function DrawControls({ raffle, eligibleCount, busy, onTransition
                     </a>
                     <a
                         href={`/raffle/${raffle.id}/prize`}
-                        target="_blank"
+                        target="natcon-prize"
                         rel="noreferrer"
                         className="btn btn-ghost"
                         title="Prize sub screen (12×7): company logo, raffle title and prize"
