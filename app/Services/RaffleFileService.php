@@ -171,7 +171,12 @@ class RaffleFileService
             // an earlier one, nor a big-prize winner. Who the day's draws pick
             // from first, unless its rule is "everyone".
             'remaining' => $count(array_unique(array_merge($wonEver, $stagedEver, $keptOut))),
-            'never_won' => $count(array_unique(array_merge($wonEver, $stagedEver, $keptOut))),
+            // Won nothing in the whole event, any day (Day 2's draws count here too).
+            'never_won' => $count(array_unique(array_merge(
+                Winner::query()->whereIn('raffle_id', $inFile->pluck('id'))->distinct()->pluck('ticket_number')->all(),
+                $inFile->flatMap(fn (Raffle $raffle) => $raffle->stagedTicketNumbers())->unique()->values()->all(),
+                $keptOut,
+            ))),
             // How many different people have won something in the event, up to this day.
             'won_people' => count(array_unique(array_merge($wonEver, $stagedEver))),
             // Still to win this day only (its own wins and lists).

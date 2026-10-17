@@ -299,7 +299,7 @@ class RaffleController extends Controller
         $copy = DB::transaction(function () use ($raffle) {
             $copy = Raffle::create($raffle->only([
                 'raffle_file_id', 'description', 'prize_name', 'prize_type', 'prize_value', 'prize_currency', 'logos', 'logo_left', 'logo_right',
-                'winners_count', 'participant_pool', 'draw_filter', 'allow_repeat_winners',
+                'winners_count', 'participant_pool', 'draw_filter', 'allow_repeat_winners', 'only_never_won',
             ]) + [
                 'name' => Str::limit($raffle->name.' (Copy)', 160, ''),
                 'slug' => $this->uniqueSlug($raffle->name.' copy'),

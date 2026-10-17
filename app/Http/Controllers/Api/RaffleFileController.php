@@ -7,7 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ImportParticipantsRequest;
 use App\Models\Participant;
 use App\Models\Raffle;
+use App\Models\PrizeSlide;
 use App\Models\RaffleFile;
+use App\Models\Winner;
+use App\Support\EventDay;
 use App\Services\RaffleFileService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -186,6 +189,95 @@ class RaffleFileController extends Controller
     }
 
     /** @return array<string, mixed> */
+    /**
+     * The file's people, each with everything they have won at the event:
+     * a search by name, ticket, phone or email across the whole list, and
+     * for each win the raffle, the prize, the day and the set. Every raffle
+     * in the file holds the same list, so one raffle stands for the file;
+     * the wins come from all of the file's raffles, stage winners included.
+     */
+    public function participants(Request $request, RaffleFile $raffleFile): JsonResponse
+    {
+        $this->authorize('viewAny', Raffle::class);
+
+        $inFile = $raffleFile->raffles()->get();
+        $rep = $inFile->first(fn (Raffle $raffle) => ! $raffle->isArchived() && $raffle->participants()->exists())
+            ?? $inFile->first(fn (Raffle $raffle) => $raffle->participants()->exists());
+
+        if ($rep === null) {
+            return response()->json(['data' => [], 'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0], 'summary' => ['people' => 0, 'winners' => 0]]);
+        }
+
+        $raffleIds = $inFile->pluck('id');
+        $wonTickets = Winner::query()->whereIn('raffle_id', $raffleIds)->distinct()->pluck('ticket_number');
+        $perPage = min(max((int) $request->integer('per_page', 50), 10), 200);
+
+        $people = Participant::query()
+            ->forRaffle($rep)
+            ->search($request->string('search')->toString())
+            ->when($request->boolean('winners'), fn ($q) => $q->whereIn('ticket_number', $wonTickets))
+            ->orderByRaw('name is null')
+            ->orderBy($request->string('sort')->toString() === 'ticket_number' ? 'ticket_number' : 'name')
+            ->orderBy('ticket_number')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $byId = $inFile->keyBy('id');
+        // Raffles made by the Prize Display: their winners were announced on stage.
+        $onStage = PrizeSlide::query()->whereIn('raffle_id', $raffleIds)->pluck('raffle_id')->flip();
+        $wins = Winner::query()
+            ->whereIn('raffle_id', $raffleIds)
+            ->whereIn('ticket_number', collect($people->items())->pluck('ticket_number'))
+            ->with('prize')
+            ->orderBy('drawn_at')
+            ->get()
+            ->groupBy('ticket_number');
+
+        $rows = collect($people->items())->map(function (Participant $person) use ($wins, $byId, $onStage) {
+            return [
+                'id' => $person->id,
+                'ticket_number' => $person->ticket_number,
+                'name' => $person->name,
+                'email' => $person->email,
+                'phone' => $person->phone,
+                'category' => $person->category,
+                'developers' => $person->developers,
+                'location' => $person->location,
+                'status' => $person->status?->value ?? $person->status,
+                'wins' => ($wins[$person->ticket_number] ?? collect())->map(function (Winner $winner) use ($byId, $onStage) {
+                    $raffle = $byId[$winner->raffle_id];
+
+                    return [
+                        'id' => $winner->id,
+                        'raffle_id' => $raffle->id,
+                        'raffle_name' => $raffle->name,
+                        'prize_name' => $winner->prize_name ?? $winner->prize?->prize_name ?? $raffle->prize_name,
+                        'position' => (int) $winner->position,
+                        'drawn_at' => $winner->drawn_at?->toIso8601String(),
+                        'event_day' => EventDay::of($winner->drawn_at),
+                        'draw_day' => $raffle->draw_day,
+                        'draw_set' => $raffle->draw_set,
+                        'on_stage' => isset($onStage[$raffle->id]),
+                    ];
+                })->values(),
+            ];
+        });
+
+        return response()->json([
+            'data' => $rows,
+            'meta' => [
+                'current_page' => $people->currentPage(),
+                'last_page' => $people->lastPage(),
+                'per_page' => $people->perPage(),
+                'total' => $people->total(),
+            ],
+            'summary' => [
+                'people' => Participant::query()->forRaffle($rep)->count(),
+                'winners' => Participant::query()->forRaffle($rep)->whereIn('ticket_number', $wonTickets)->count(),
+            ],
+        ]);
+    }
+
     protected function summary(RaffleFile $file): array
     {
         return [

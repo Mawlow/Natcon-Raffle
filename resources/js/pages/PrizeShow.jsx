@@ -110,7 +110,8 @@ export default function PrizeShow() {
                                         /* A prize with a photo (a car) keeps it on the wall: the
                                            photo on the left, the winners' names on the right. */
                                         <div className="grid min-h-0 w-full flex-1 grid-cols-2 items-center gap-[2cqw] px-[clamp(0.75rem,2.5vw,3rem)] pt-[clamp(0.5rem,2vh,1.5rem)]">
-                                            <div className="flex h-full min-h-0 w-full items-center justify-center">
+                                            {/* Nudged down so the prize sits level with the names beside it. */}
+                                            <div className="flex h-full min-h-0 w-full translate-y-[10cqh] items-center justify-center">
                                                 <PrizeStage src={slide.image} alt={slide.prize_name} fill scale={sizes.prize ?? 1} spin={Boolean(slide.spin)} />
                                             </div>
                                             <div className="flex h-full min-h-0 w-full items-center justify-center">
@@ -160,9 +161,9 @@ export default function PrizeShow() {
 
 /**
  * The winners' names beside the prize's photo: each in gold foil lettering
- * with a light passing through it, no card and no number, the ticket in a
- * small line beneath. Usually one person wins a prize like a car, so the
- * name stands on its own; more stack up and shrink to fit.
+ * with a light passing through it, no card, no number and no ticket: just
+ * the name. Usually one person wins a prize like a car, so the name stands
+ * on its own; more stack up and shrink to fit.
  */
 function StageNames({ winners }) {
     const ease = [0.22, 1, 0.36, 1];
@@ -183,11 +184,6 @@ function StageNames({ winners }) {
                     >
                         {winner.name}
                     </p>
-                    {winner.ticket_number && (
-                        <p className="mt-[1.2cqh] font-display uppercase tracking-[0.3em] text-gold/80" style={{ fontSize: 'min(1.6cqw, 3cqh)' }}>
-                            Ticket {winner.ticket_number}
-                        </p>
-                    )}
                 </motion.div>
             ))}
         </div>

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Diamond, EVENT, EVENT_LOGO, EventBackdrop } from '../landing/EventScene';
 import HashtagMark from './HashtagMark';
-import { SPONSOR_SLIDES, SPONSOR_TIERS, logoScale } from '../../lib/sponsors';
+import { SPONSOR_SLIDES, SPONSOR_TIERS, logoStyle } from '../../lib/sponsors';
 
 const EASE = [0.22, 1, 0.36, 1];
 
@@ -10,29 +10,23 @@ const EASE = [0.22, 1, 0.36, 1];
 const TOP_LEFT_LOGO = { src: '/images/logos/filipino-homes/filipinohomes-logo-2.png', alt: 'Filipino Homes' };
 const TOP_RIGHT_LOGO = { src: '/images/logos/rent-ph/rentph-new-white-logo.png', alt: 'Rent.ph' };
 
-// Each logo's box per tier, in screen units so they hold on any LED wall: the
-// co-presenter fills the stage, each tier after it a step smaller.
+// Each logo's box, in screen units so they hold on any LED wall: the
+// co-presenter fills the stage; every sponsor tier shares one box size,
+// five to a row across the 92vw band (5 × 16.8vw + 4 × 2vw gaps).
 const CARD = {
     hero: 'h-[28vh] w-[min(52vw,56rem)] p-[2vh]',
     // Five to a row, so a slide of 10 is two rows.
-    lg: 'h-[17vh] w-[16.5vw] p-[2vh]',
-    md: 'h-[15vh] w-[16.5vw] p-[1.8vh]',
+    lg: 'h-[16.5vh] w-[16.8vw] p-[1.4vh]',
+    md: 'h-[16.5vh] w-[16.8vw] p-[1.4vh]',
     // Five to a row, so a slide of 10 is two rows.
-    sm: 'h-[17vh] w-[16.5vw] p-[1vh]',
-};
-
-const GAP = {
-    hero: 'gap-0',
-    lg: 'gap-[2.2vw]',
-    md: 'gap-[1.8vw]',
-    sm: 'gap-[2vw]',
+    sm: 'h-[16.5vh] w-[16.8vw] p-[1.4vh]',
 };
 
 /**
  * The sponsor show on the main screen: the co-presenter alone, then each
  * tier of sponsors a slide at a time. The stage stays dark, and the logos
- * stand in a pool of warm gold light with dust drifting through it, bright
- * enough that even a logo in black text reads. `slide` is driven by the main
+ * stand on one cream plaque in an ornate polished-gold frame, bright enough
+ * that even a logo in black text reads. `slide` is driven by the main
  * screen (and so by the Control Center), which also times the turns;
  * `logoSize` is the size of the logos along the top, as a % of their default.
  */
@@ -131,10 +125,17 @@ function LogoWall({ slide }) {
     const size = slide.tier.size;
     const hero = size === 'hero';
     return (
-        <div className="relative mt-[6vh]">
-            <GoldLight />
+        /* One fixed band, the same on every slide, wider than the wall so its
+           left and right ends run off both sides of the screen: only the top
+           and bottom edges of the frame show. The logos are laid out inside
+           it, never the other way round. */
+        <div className="relative mt-[4vh] flex h-[42vh] w-[112vw] shrink-0 items-center justify-center">
+            <Plaque />
             <motion.ul
-            className={`relative flex max-w-[92vw] flex-wrap items-center justify-center ${GAP[size]} ${hero ? '' : 'gap-y-[2.6vh]'}`}
+            /* The co-presenter sits alone; a tier of sponsors is five equal
+               boxes to a row spread across the whole wall, and a short last
+               row (three left over, say) is centred rather than left-aligned. */
+            className={hero ? 'relative flex items-center justify-center' : 'relative flex w-[92vw] flex-wrap items-center justify-center gap-x-[2vw] gap-y-[2.2vh]'}
             variants={{
                 hidden: {},
                 shown: { transition: { staggerChildren: hero ? 0 : 0.07, delayChildren: 0.25 } },
@@ -144,7 +145,7 @@ function LogoWall({ slide }) {
             {slide.logos.map((src) => (
                 <motion.li
                     key={src}
-                    className={`flex ${CARD[size]} ${hero ? 'drop-shadow-[0_10px_24px_rgba(120,85,10,0.25)]' : 'drop-shadow-[0_4px_10px_rgba(120,85,10,0.18)]'}`}
+                    className={`relative flex ${CARD[size]} ${hero ? 'drop-shadow-[0_10px_24px_rgba(120,85,10,0.25)]' : 'drop-shadow-[0_4px_10px_rgba(120,85,10,0.18)]'}`}
                     variants={{
                         // Slide and fade only: scaling a logo with its shadow
                         // redraws the shadow every frame on weaker screens.
@@ -155,8 +156,8 @@ function LogoWall({ slide }) {
                 >
                     {/* Held to its box, however tall the logo. */}
                     <span className="relative size-full">
-                        {/* A logo with a lot of empty space round its artwork is drawn larger (see lib/sponsors). */}
-                        <img src={src} alt="" className="absolute inset-0 size-full object-contain" style={logoScale(src) !== 1 ? { transform: `scale(${logoScale(src)})` } : undefined} draggable={false} />
+                        {/* A logo with a lot of empty space round its artwork is drawn larger, and a dark one is outlined in white (see lib/sponsors). */}
+                        <img src={src} alt="" className="absolute inset-0 size-full object-contain" style={logoStyle(src)} draggable={false} />
                     </span>
                 </motion.li>
             ))}
@@ -165,49 +166,60 @@ function LogoWall({ slide }) {
     );
 }
 
-// Specks of gold dust in the light: [left %, top %, size px, delay s, length s].
-const DUST = [
-    [4, 70, 3, 0, 6], [9, 22, 2, 1.4, 7], [15, 88, 4, 2.6, 5.5], [21, 8, 2, 0.6, 6.5],
-    [28, 60, 3, 3.2, 7], [34, 94, 2, 1.1, 6], [41, 14, 3, 4, 5.8], [47, 78, 2, 2.2, 6.8],
-    [53, 4, 4, 0.3, 6.2], [59, 66, 2, 3.6, 7.2], [65, 18, 3, 1.8, 5.6], [71, 90, 2, 0.9, 6.4],
-    [77, 40, 3, 2.9, 7], [83, 10, 2, 4.4, 6], [89, 74, 4, 1.5, 5.8], [95, 30, 2, 3, 6.6],
-];
+// Polished gold, lit from the top left, for the frame's metal.
+const GOLD_METAL = 'linear-gradient(135deg, #6e5312 0%, #c9a640 18%, #fff1bf 34%, #d8b449 50%, #8a6a1a 66%, #e9cf7a 84%, #7a5c14 100%)';
+const GOLD_RULE = 'linear-gradient(90deg, rgba(184,144,42,0) 0%, #b8902a 20%, #f3dc8e 50%, #b8902a 80%, rgba(184,144,42,0) 100%)';
+
+/** A round gold boss, a dark ring inside its rim and a bright centre. */
+function Boss({ size = '2.2vh', style }) {
+    return (
+        <span aria-hidden="true" className="pointer-events-none absolute rounded-full" style={{ width: size, height: size, background: GOLD_METAL, boxShadow: '0 0.3vh 0.8vh rgba(0,0,0,0.55)', ...style }}>
+            <span className="absolute inset-[22%] rounded-full bg-[#1a1407]" />
+            <span className="absolute inset-[34%] rounded-full" style={{ background: GOLD_METAL }} />
+        </span>
+    );
+}
 
 /**
- * The pool of gold light behind the logos: brightest under them, so dark
- * lettering reads, and fading out to the dark stage at the edges, with
- * dust drifting up through it.
+ * The plaque the logos stand on: a cream band running right off both sides
+ * of the screen, so every logo sits on the same bright ground. Along its
+ * top and bottom edges a polished gold band with a dark reveal inside, a
+ * hairline rule inset on the panel, and a round medallion set into the
+ * middle of each edge with a rule running out either side. All flat colour
+ * and hard edges: nothing blurred for a smart TV to redraw.
  */
-function GoldLight() {
+function Plaque() {
     return (
         <motion.div
-            className="pointer-events-none absolute -inset-x-[8vw] -inset-y-[6.5vh]"
+            className="pointer-events-none absolute inset-0"
             aria-hidden="true"
             variants={{
-                hidden: { opacity: 0 },
-                shown: { opacity: 1, transition: { duration: 1.2, ease: EASE } },
+                hidden: { opacity: 0, scaleY: 0.96 },
+                shown: { opacity: 1, scaleY: 1, transition: { duration: 1, ease: EASE } },
                 gone: { opacity: 0, transition: { duration: 0.4 } },
             }}
         >
-            {/* A wide halo, then the light itself: solid under every logo,
-                corners included, feathered out at the edges. Soft gradients
-                rather than blur filters, which weaker screens (smart TVs)
-                redraw slowly. */}
-            <div className="absolute -inset-[9vh] bg-[radial-gradient(closest-side,rgba(212,175,55,0.22),rgba(212,175,55,0.08)_60%,transparent)]" />
-            <div className="absolute -inset-[3vh] bg-[radial-gradient(closest-side,#fbf0cf_0%,#f3e0a8_62%,rgba(230,199,119,0.75)_80%,rgba(230,199,119,0)_100%)]" />
-            {DUST.map(([left, top, size, delay, length]) => (
-                <span
-                    key={`${left}-${top}`}
-                    className="sparkle-speck absolute rounded-full bg-gold-bright shadow-[0_0_6px_2px_rgba(245,215,110,0.7)]"
-                    style={{
-                        left: `${left}%`,
-                        top: `${top}%`,
-                        width: size,
-                        height: size,
-                        animation: `sparkle-drift ${length}s ease-in-out ${delay}s infinite both`,
-                    }}
-                />
-            ))}
+            {/* The gold band, the dark reveal, then the cream panel. */}
+            <div className="absolute inset-0" style={{ background: GOLD_METAL, boxShadow: '0 2.5vh 6vh -2vh rgba(0,0,0,0.85)' }} />
+            <div className="absolute inset-[0.55vh] bg-[#1a1407]" />
+            <div className="absolute inset-[0.85vh] bg-[linear-gradient(180deg,#fdf6e0_0%,#f8ebc7_60%,#f2e0b0_100%)]" style={{ boxShadow: 'inset 0 0 0 1px rgba(143,110,28,0.45), inset 0 0.4vh 0 rgba(255,255,255,0.85)' }} />
+
+            {/* A hairline rule inset along the top and foot of the panel, and a fine second rule under it. */}
+            <div className="absolute inset-x-0 top-[2.4vh] h-px bg-[#9c7a22]/70" />
+            <div className="absolute inset-x-0 top-[3vh] h-px bg-[#9c7a22]/35" />
+            <div className="absolute inset-x-0 bottom-[2.4vh] h-px bg-[#9c7a22]/70" />
+            <div className="absolute inset-x-0 bottom-[3vh] h-px bg-[#9c7a22]/35" />
+
+            {/* The medallion set into the top edge, with a rule running out either side. */}
+            <span className="absolute left-1/2 top-0 h-[0.3vh] w-[30%] -translate-x-1/2 -translate-y-1/2" style={{ background: GOLD_RULE }} />
+            <span className="absolute left-1/2 top-0 size-[5.4vh] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#1a1407]" style={{ boxShadow: '0 0 0 0.35vh #1a1407' }} />
+            <Boss size="5.4vh" style={{ left: '50%', top: 0, transform: 'translate(-50%, -50%)' }} />
+            {/* Smaller bosses out along the rule. */}
+            {['38%', '62%'].map((left) => <Boss key={left} size="2vh" style={{ left, top: 0, transform: 'translate(-50%, -50%)' }} />)}
+            {/* And its echo along the foot. */}
+            <span className="absolute bottom-0 left-1/2 h-[0.3vh] w-[30%] -translate-x-1/2 translate-y-1/2" style={{ background: GOLD_RULE }} />
+            <Boss size="3.4vh" style={{ left: '50%', top: '100%', transform: 'translate(-50%, -50%)' }} />
+            {['38%', '62%'].map((left) => <Boss key={left} size="1.6vh" style={{ left, top: '100%', transform: 'translate(-50%, -50%)' }} />)}
         </motion.div>
     );
 }

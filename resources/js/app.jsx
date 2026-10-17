@@ -35,6 +35,7 @@ import PrizeShow from './pages/PrizeShow';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Raffles = lazy(() => import('./pages/Raffles'));
 const RaffleFileDetail = lazy(() => import('./pages/RaffleFileDetail'));
+const RaffleFileParticipants = lazy(() => import('./pages/RaffleFileParticipants'));
 const RaffleEditor = lazy(() => import('./pages/RaffleEditor'));
 const RaffleDetail = lazy(() => import('./pages/RaffleDetail'));
 const RaffleParticipants = lazy(() => import('./pages/RaffleParticipants'));
@@ -98,6 +99,7 @@ function App() {
                         <Route path="/raffles" element={<Page><Raffles /></Page>} />
                         <Route path="/raffles/new" element={<Page><RaffleEditor /></Page>} />
                         <Route path="/raffle-files/:file" element={<Page><RaffleFileDetail /></Page>} />
+                        <Route path="/raffle-files/:file/participants" element={<Page><RaffleFileParticipants /></Page>} />
                         <Route path="/raffles/:raffle" element={<Page><RaffleDetail /></Page>} />
                         <Route path="/raffles/:raffle/edit" element={<Page><RaffleEditor /></Page>} />
                         <Route path="/raffles/:raffle/participants" element={<Page><RaffleParticipants /></Page>} />

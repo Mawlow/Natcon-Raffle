@@ -1318,6 +1318,15 @@ class RaffleDrawService
             });
         }
 
+        // A raffle for the people still to win: only those who have won
+        // nothing in the whole event, any day, are in. No falling back to
+        // everyone — if they have all won, the draw says so.
+        if ($raffle->only_never_won) {
+            $wonAnyDay = $raffle->ticketsWonAnyDay();
+
+            return $wonAnyDay === [] ? $query : $query->whereNotIn('participants.ticket_number', $wonAnyDay);
+        }
+
         // Who comes first, in order:
         //   1. anyone still to win anything — not drawn and not on a list on
         //      this day or any earlier day (a later day's lists count for nothing here);

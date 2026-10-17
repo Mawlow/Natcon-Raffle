@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Archive, Copy, Crown, Folder, Lock, LockOpen, Play, RotateCcw, Wand2, ExternalLink, FolderInput, MoreVertical, Pencil, Trash2, Users } from 'lucide-react';
+import { Archive, Copy, Crown, ExternalLink, Folder, FolderInput, Lock, LockOpen, MoreVertical, Pencil, Play, RotateCcw, Trash2, UserCheck, Users, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import StatusChip from '../ui/StatusChip';
 import { formatNumber, formatPrizeValue } from '../../lib/format';
 import { setLabel } from '../../lib/sets';
 import { isReplay } from './RedrawDialog';
 
-export default function RaffleCard({ raffle, files = null, selectable = false, selected = false, onToggleSelect = null, onDuplicate, onRedraw, onConvert = null, onKeep = null, onLock = null, onUnlock = null, onToggleOut = null, onMoveToFile, onArchive, onRestore, onDelete, delay = 0 }) {
+export default function RaffleCard({ raffle, files = null, selectable = false, selected = false, onToggleSelect = null, onDuplicate, onRedraw, onConvert = null, onKeep = null, onLock = null, onUnlock = null, onToggleOut = null, onToggleNeverWon = null, onMoveToFile, onArchive, onRestore, onDelete, delay = 0 }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -82,6 +82,9 @@ export default function RaffleCard({ raffle, files = null, selectable = false, s
                         {raffle.winners_out_for_event && (
                             <span className="chip border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200" title="Big prize: its winners are left out of every other draw of the event, all days"><Crown size={11} /> Winners out for the event</span>
                         )}
+                        {raffle.only_never_won && (
+                            <span className="chip border-sky-400/30 bg-sky-500/10 text-sky-200" title="Draws only from the people who have won nothing in the event yet, any day"><UserCheck size={11} /> Only people still to win</span>
+                        )}
                     </div>
 
                     <Link to={`/raffles/${raffle.id}`} className="block">
@@ -150,6 +153,19 @@ export default function RaffleCard({ raffle, files = null, selectable = false, s
                                         : 'Big prize: whoever wins it is left out of every other draw of the event, all days'}
                                 >
                                     <Crown size={14} /> {raffle.winners_out_for_event ? 'Winners back in for other days' : 'Big prize: winners sit out the event'}
+                                </button>
+                            )}
+
+                            {onToggleNeverWon && !raffle.is_archived && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMenuOpen(false); onToggleNeverWon(raffle); }}
+                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-muted transition hover:bg-white/5 hover:text-white"
+                                    title={raffle.only_never_won
+                                        ? 'Back to the usual rule: a day at a time, with other days\' winners still in'
+                                        : 'Draw only from the people who have won nothing in the event yet, any day, Day 2 included'}
+                                >
+                                    <UserCheck size={14} /> {raffle.only_never_won ? 'Back to the usual pool' : 'Only people still to win (any day)'}
                                 </button>
                             )}
 

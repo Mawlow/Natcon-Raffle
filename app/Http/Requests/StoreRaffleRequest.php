@@ -61,6 +61,8 @@ class StoreRaffleRequest extends FormRequest
             'allow_repeat_winners' => ['boolean'],
             // A big prize: its winners sit out every other draw of the event, all days.
             'winners_out_for_event' => ['boolean'],
+            // Only the people who have won nothing in the event yet, any day.
+            'only_never_won' => ['boolean'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'settings' => ['nullable', 'array'],
@@ -82,6 +84,7 @@ class StoreRaffleRequest extends FormRequest
         $this->merge([
             'allow_repeat_winners' => $this->boolean('allow_repeat_winners'),
             'winners_out_for_event' => $this->boolean('winners_out_for_event'),
+            'only_never_won' => $this->boolean('only_never_won'),
         ]);
     }
 

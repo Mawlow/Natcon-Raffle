@@ -1002,7 +1002,18 @@ export default function ControlCenter() {
 
             {/* Attendance: anyone not here is marked absent and cannot win. */}
             {visited.people && (
-                <div hidden={tab !== 'people'} className="mt-5">
+                <div hidden={tab !== 'people'} className="mt-5 space-y-4">
+                    {raffle.raffle_file_id && (
+                        <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
+                            <p className="text-sm text-muted">
+                                Looking for what someone has won? Search the whole file: every win with its raffle, prize, day and set.
+                            </p>
+                            <Link to={`/raffle-files/${raffle.raffle_file_id}/participants`} className="btn btn-outline px-3 py-1.5 text-xs">
+                                <Users size={13} />
+                                Participants &amp; wins
+                            </Link>
+                        </div>
+                    )}
                     <AttendancePanel raffleId={raffleId} midDraw={midDraw} onChanged={loadRaffle} />
                 </div>
             )}

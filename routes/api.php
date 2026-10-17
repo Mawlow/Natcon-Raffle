@@ -109,6 +109,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/raffle-files/{raffleFile}/days/{day}', [RaffleFileController::class, 'day'])->whereNumber('day')->name('api.raffle-files.day');
     Route::put('/raffle-files/{raffleFile}/days/{day}', [RaffleFileController::class, 'updateDay'])->whereNumber('day')->name('api.raffle-files.day.update');
     Route::get('/raffle-files/{raffleFile}/days/{day}/export', [RaffleFileController::class, 'exportDay'])->whereNumber('day')->name('api.raffle-files.day.export');
+    Route::get('/raffle-files/{raffleFile}/participants', [RaffleFileController::class, 'participants'])->name('api.raffle-files.participants');
     Route::post('/raffle-files/{raffleFile}/participants/preview', [RaffleFileController::class, 'preview'])->name('api.raffle-files.preview');
     Route::post('/raffle-files/{raffleFile}/participants', [RaffleFileController::class, 'import'])->name('api.raffle-files.import');
 

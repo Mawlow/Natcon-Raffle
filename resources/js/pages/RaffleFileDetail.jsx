@@ -358,6 +358,19 @@ export default function RaffleFileDetail() {
         }
     };
 
+    const toggleNeverWon = async (raffle) => {
+        const on = !raffle.only_never_won;
+        try {
+            await api.put(`/raffles/${raffle.id}`, { only_never_won: on });
+            toast.success(on
+                ? `"${raffle.name}" now draws only from the people who have won nothing in the event yet, any day.`
+                : `"${raffle.name}" is back to the usual pool: a day at a time.`);
+            await load();
+        } catch (error) {
+            toast.error(parseError(error, 'The raffle could not be changed.').message);
+        }
+    };
+
     const openKeep = (list) => {
         setKeepSet(list.some((raffle) => raffle.draw_set) ? 'keep' : '');
         setKeepDay(list.some((raffle) => raffle.draw_day) ? 'keep' : (day ? String(day) : ''));
@@ -394,6 +407,7 @@ export default function RaffleFileDetail() {
             onRedraw={setRedrawing}
             onKeep={(target) => openKeep([target])}
             onToggleOut={toggleOut}
+            onToggleNeverWon={toggleNeverWon}
             onLock={(target) => lockMany([target])}
             onUnlock={setUnlocking}
             onArchive={(target) => setConfirm({
@@ -428,6 +442,12 @@ export default function RaffleFileDetail() {
                     <Link to="/raffles" className="btn btn-ghost">
                         <ArrowLeft size={15} /> <span className="hidden sm:inline">Raffles</span>
                     </Link>
+                    {hasParticipants && (
+                        <Link to={`/raffle-files/${fileId}/participants`} className="btn btn-outline">
+                            <Users size={15} />
+                            <span className="hidden sm:inline">Participants</span>
+                        </Link>
+                    )}
                     {firstToDraw && (
                         <Link to={`/raffle/${firstToDraw.id}/control`} className="btn btn-gold">
                             <MonitorPlay size={16} />

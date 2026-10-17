@@ -118,6 +118,9 @@ const LOGO_SCALE = {
     '27f48d8f-edf0-48a0-b9a8-2bec997e8ac6': 1.6, // Horizon
     '91fa9e92-26cf-4f05-b1a6-c7f2b111d9f1': 1.45, // Sunberry Homes & Contempo
     'fa6a3cd6-10a4-4711-9bf0-c04e800295bf': 1.75, // Marrea
+    '356fe151-abae-4f66-ac1c-2e235bcda12c': 1.85, // Island Hills Land
+    '85db5943-d221-4263-874e-8575428f80cd': 1.35, // Jiprop
+    '82b3ab4c-5dbd-488e-b726-5ee8367a3e27': 1.3, // DBHR Brokerage (Davao Best Homes)
     // Tall marks that already fill their box's height: these grow into its padding.
     '36488067-ccbf-4719-86bb-3010a3ea2ebf': 1.35, // Aeon Luxe
     '538580bc-672a-49ce-9520-c60efb88f692': 1.5, // King Properties
@@ -125,7 +128,33 @@ const LOGO_SCALE = {
 };
 
 /** How much larger to draw a sponsor logo (1 for most). */
-export const logoScale = (src) => LOGO_SCALE[src.slice(src.lastIndexOf('/') + 1, -'.webp'.length)] ?? 1;
+export const logoScale = (src) => LOGO_SCALE[logoId(src)] ?? 1;
+
+/**
+ * Logos whose dark artwork sinks into the dark backdrop, drawn with a thin
+ * white outline so they read clearly: a ring of white drop-shadows cast in
+ * eight directions, which traces the edge of the artwork's transparent file.
+ */
+const LOGO_OUTLINE = new Set([
+    'a04ead54-6361-4d6e-ad6d-710c2b03b81c', // Sterling Land (dark green wordmark)
+]);
+
+const OUTLINE_FILTER = ['0 -1px', '1px -1px', '1px 0', '1px 1px', '0 1px', '-1px 1px', '-1px 0', '-1px -1px']
+    .map((offset) => `drop-shadow(${offset} 0 rgba(255,255,255,0.95))`)
+    .join(' ');
+
+/** The CSS filter that outlines a sponsor logo in white, or undefined for most. */
+export const logoOutline = (src) => (LOGO_OUTLINE.has(logoId(src)) ? OUTLINE_FILTER : undefined);
+
+/** The inline styles a sponsor logo's <img> needs beyond its box: its scale and outline, if any. */
+export const logoStyle = (src) => {
+    const scale = logoScale(src);
+    const filter = logoOutline(src);
+    if (scale === 1 && !filter) return undefined;
+    return { ...(scale !== 1 ? { transform: `scale(${scale})` } : {}), ...(filter ? { filter } : {}) };
+};
+
+const logoId = (src) => src.slice(src.lastIndexOf('/') + 1, -'.webp'.length);
 
 /**
  * The show's slides: each tier split into as few slides as its `perSlide`

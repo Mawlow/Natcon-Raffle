@@ -60,6 +60,7 @@ class Raffle extends Model
         'status',
         'allow_repeat_winners',
         'winners_out_for_event',
+        'only_never_won',
         'starts_at',
         'ends_at',
         'completed_at',
@@ -73,6 +74,7 @@ class Raffle extends Model
             'status' => RaffleStatus::class,
             'allow_repeat_winners' => 'boolean',
             'winners_out_for_event' => 'boolean',
+            'only_never_won' => 'boolean',
             'prize_value' => 'decimal:2',
             'logos' => 'array',
             'prize_images' => 'array',
@@ -333,6 +335,38 @@ class Raffle extends Model
     }
 
     /**
+     * Ticket numbers that have won anything in the event, any day: drawn in
+     * or on the pre-selected list of any other raffle of this raffle's
+     * file, Day 2's included. Who a raffle "for the people still to win"
+     * (`only_never_won`) leaves out.
+     *
+     * @return array<int, string>
+     */
+    public function ticketsWonAnyDay(): array
+    {
+        if ($this->raffle_file_id === null) {
+            return [];
+        }
+
+        $won = Winner::query()
+            ->whereIn('winners.raffle_id', static::query()->sharingPeopleWith($this)->whereKeyNot($this->id)->select('id'))
+            ->distinct()
+            ->pluck('winners.ticket_number')
+            ->all();
+
+        $stagedIds = static::query()
+            ->sharingPeopleWith($this)
+            ->whereNotNull('staged_winners')
+            ->whereKeyNot($this->id)
+            ->get(['id', 'staged_winners'])
+            ->flatMap(fn (Raffle $raffle) => array_column($raffle->stagedWinners(), 'participant_id'))
+            ->unique()->values()->all();
+        $staged = $stagedIds === [] ? [] : Participant::query()->whereIn('id', $stagedIds)->distinct()->pluck('ticket_number')->all();
+
+        return array_values(array_unique(array_merge($won, $staged, $this->ticketsKeptOut())));
+    }
+
+    /**
      * Whether this raffle's day puts its winners back in play: the file's
      * rule for the day is "everyone", so winning earlier in the day does not
      * keep anyone out of this draw. Big-prize winners stay out regardless.
@@ -493,7 +527,7 @@ class Raffle extends Model
             return null;
         }
 
-        $taken = array_merge(
+        $taken = $this->only_never_won ? $this->ticketsWonAnyDay() : array_merge(
             array_keys($this->ticketsTakenIn(static::query()->sharingPeopleWith($this)->onOrBeforeDayOf($this))),
             $this->ticketsKeptOut(),
         );

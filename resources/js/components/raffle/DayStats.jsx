@@ -58,7 +58,7 @@ export default function DayStats({ fileId, day, version }) {
     const everyone = stats?.rule === 'everyone';
     const cards = stats ? [
         { icon: Trophy, label: 'Wins given out', value: stats.winners, hint: stats.winners_people === stats.winners ? `${formatNumber(stats.winners_people)} ${stats.winners_people === 1 ? 'person' : 'people'}` : `${formatNumber(stats.winners_people)} different people` },
-        { icon: UserCheck, label: 'Still to win', value: stats.remaining, hint: everyone ? `Everyone can win ${dayLabel(day)}` : `Who ${dayLabel(day)}'s draws pick from`, gold: !everyone, list: 'remaining' },
+        { icon: UserCheck, label: 'Still to win', value: stats.remaining, hint: everyone ? `Everyone can win ${dayLabel(day)}` : stats.never_won !== stats.remaining ? `Who ${dayLabel(day)}'s draws pick from · ${formatNumber(stats.never_won)} have won nothing on any day` : `Who ${dayLabel(day)}'s draws pick from`, gold: !everyone, list: 'remaining' },
         { icon: UsersRound, label: 'Won so far in the event', value: stats.won_people, hint: 'Different people, any day', list: 'won' },
         { icon: Users, label: 'Participants', value: stats.participants, hint: stats.kept_out > 0 ? `${formatNumber(stats.kept_out)} out for the event (big prizes)` : 'In every raffle of the file' },
     ] : [];

@@ -54,6 +54,8 @@ class RaffleResource extends JsonResource
             'allow_repeat_winners' => (bool) $this->allow_repeat_winners,
             // A big prize: its winners sit out every other draw of the event, all days.
             'winners_out_for_event' => (bool) $this->winners_out_for_event,
+            // Only the people who have won nothing in the event yet, any day.
+            'only_never_won' => (bool) $this->only_never_won,
             'is_archived' => $this->archived_at !== null,
             'starts_at' => $this->starts_at?->toIso8601String(),
             'ends_at' => $this->ends_at?->toIso8601String(),
