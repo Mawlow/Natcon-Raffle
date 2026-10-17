@@ -65,50 +65,112 @@ export default function SingleScreenHeader({ raffle, sizes = { event: 1, company
                 {DISPLAY_TITLE}
             </motion.h1>}
 
-            {/* The prize in a glowing gold frame that breathes gently — once it is
-                set — with its photo beside it when one is saved (a brand new car). */}
-            {raffle.prize_name && <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.9, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className="relative"
-                style={{ marginTop: `clamp(0.5rem,${vh(1.4)},1rem)` }}
-            >
-                <motion.span
-                    aria-hidden="true"
-                    animate={{ opacity: [0.55, 1, 0.55] }}
-                    transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-                    className="pointer-events-none absolute -inset-3 rounded-full bg-[radial-gradient(closest-side,rgba(212,175,55,0.24),rgba(212,175,55,0.08)_60%,transparent)] [will-change:opacity]"
-                />
+            {/* The prize — once it is set — as ivory plate lettering between
+                gold chevrons over a twin rule, the same marquee as the Prize
+                Display, with its photo beside it when one is saved. */}
+            {raffle.prize_name && (
                 <div
-                    className={`relative flex items-center justify-center gap-x-5 gap-y-1 border border-gold/50 bg-gradient-to-b from-gold/[0.14] to-black/70 shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_10px_40px_-10px_rgba(212,175,55,0.55),inset_0_1px_0_rgba(255,244,201,0.25)] ${raffle.prize_image ? 'flex-nowrap rounded-[2.5rem]' : 'flex-wrap rounded-full'}`}
-                    style={raffle.prize_image
-                        ? { paddingInline: `clamp(0.6rem,${vw(1.2)},1.2rem) clamp(1.5rem,${vw(3.6)},3.5rem)`, paddingBlock: `clamp(0.4rem,${vh(1)},0.8rem)`, columnGap: `clamp(0.9rem,${vw(2)},2rem)` }
-                        : { paddingInline: `clamp(1.5rem,${vw(3.6)},3.5rem)`, paddingBlock: `clamp(0.45rem,${vh(1.4)},1rem)` }}
+                    className="relative flex items-center justify-center"
+                    style={{ marginTop: `clamp(0.5rem,${vh(1.4)},1rem)`, columnGap: `clamp(0.9rem,${vw(2.2)},2.2rem)` }}
                 >
                     {raffle.prize_image && <PrizePhoto src={raffle.prize_image} alt={raffle.prize_name} />}
-                    <div className={raffle.prize_image ? 'flex min-w-0 flex-col items-start text-left' : 'contents'}>
-                    {raffle.prize_type === 'item' ? (
-                        <>
-                            <p className="prize-gradient pl-[0.12em] font-lux font-bold uppercase leading-tight tracking-[0.12em]" style={{ fontSize: `clamp(1.7rem,min(${vw(4)},${vh(6.4)}),3.5rem)` }}>
-                                {raffle.prize_name}
-                            </p>
-                            {prizeValue && (
-                                <p className="font-script font-semibold italic leading-tight prize-gradient" style={{ fontSize: `clamp(1.4rem,min(${vw(3)},${vh(5.1)}),2.6rem)` }}>
-                                    worth {prizeValue}
-                                </p>
-                            )}
-                        </>
-                    ) : (
-                        // Cash: the amount and "CASH PRIZE" as one line — "₱1,000 CASH PRIZE".
-                        <p className="prize-gradient pl-[0.14em] font-lux font-bold uppercase leading-tight tracking-[0.14em]" style={{ fontSize: `clamp(1.7rem,min(${vw(4)},${vh(6.4)}),3.5rem)` }}>
-                            {cashPrizeText(raffle.prize_value, raffle.prize_currency) ?? raffle.prize_name}
-                        </p>
-                    )}
-                    </div>
+                    <PrizeMarquee
+                        name={raffle.prize_type === 'item' ? raffle.prize_name : (cashPrizeText(raffle.prize_value, raffle.prize_currency) ?? raffle.prize_name)}
+                        value={raffle.prize_type === 'item' ? prizeValue : null}
+                    />
                 </div>
-            </motion.div>}
+            )}
         </div>
+    );
+}
+
+/**
+ * The prize as marquee lettering on the one-screen setup: ivory plate
+ * lettering edged in gold between a pair of gold chevrons, a soft pool of
+ * light behind, a twin rule with a diamond clasp beneath and the value (if
+ * any) in script. The Prize Display's BarePrize, sized in stage units.
+ */
+export function PrizeMarquee({ name, value }) {
+    const ease = [0.22, 1, 0.36, 1];
+
+    return (
+        <div className="relative flex min-w-0 flex-col items-center">
+            <div className="relative flex items-center justify-center" style={{ columnGap: `clamp(0.5rem,${vw(1.2)},1.2rem)` }}>
+                <motion.span
+                    aria-hidden="true"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: [0.5, 0.85, 0.5] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-[200%] w-[130%] -translate-x-1/2 -translate-y-1/2 rounded-[100%] bg-[radial-gradient(closest-side,rgba(212,175,55,0.22),rgba(212,175,55,0.06)_55%,transparent)] [will-change:opacity]"
+                />
+                <Chevrons side="left" delay={0.75} ease={ease} />
+                <motion.p
+                    initial={{ opacity: 0, scale: 0.86, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 1.2, delay: 0.5, ease }}
+                    className="prize-ivory relative text-balance pl-[0.06em] text-center font-lux font-black uppercase leading-[1.02] tracking-[0.05em]"
+                    style={{ fontSize: `clamp(1.9rem,min(${vw(4.6)},${vh(7.4)}),4rem)`, maxWidth: `min(60rem,${vw(68)})` }}
+                >
+                    {name}
+                </motion.p>
+                <Chevrons side="right" delay={0.75} ease={ease} />
+            </div>
+
+            <motion.div
+                aria-hidden="true"
+                initial={{ opacity: 0, scaleX: 0.3 }}
+                animate={{ opacity: 1, scaleX: 1 }}
+                transition={{ duration: 1.2, delay: 0.9, ease }}
+                className="relative flex w-full flex-col items-center"
+                style={{ marginTop: `clamp(0.35rem,${vh(1)},0.7rem)`, rowGap: `clamp(0.15rem,${vh(0.4)},0.3rem)`, maxWidth: `min(34rem,${vw(40)})` }}
+            >
+                <span className="h-px w-full bg-gradient-to-r from-transparent via-gold/70 to-transparent" />
+                <span
+                    className="rounded-full"
+                    style={{
+                        height: `clamp(2px,${vh(0.3)},4px)`,
+                        width: '42%',
+                        background: 'linear-gradient(90deg, transparent, rgba(245,215,110,0.9) 25%, rgba(255,250,235,1) 50%, rgba(245,215,110,0.9) 75%, transparent)',
+                        boxShadow: '0 0 12px 2px rgba(255,225,140,0.5), 0 0 30px 6px rgba(212,175,55,0.25)',
+                    }}
+                />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-gold-bright bg-black shadow-[0_0_12px_rgba(255,232,160,0.8)]" style={{ width: `clamp(7px,${vw(0.7)},11px)`, height: `clamp(7px,${vw(0.7)},11px)` }}>
+                    <span className="absolute inset-[22%] bg-gold-bright" />
+                </span>
+            </motion.div>
+
+            {value && (
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 1.1 }}
+                    className="prize-gradient font-script font-semibold italic leading-tight"
+                    style={{ marginTop: `clamp(0.3rem,${vh(0.9)},0.6rem)`, fontSize: `clamp(1.3rem,min(${vw(2.8)},${vh(4.8)}),2.4rem)` }}
+                >
+                    worth {value}
+                </motion.p>
+            )}
+        </div>
+    );
+}
+
+/** A pair of gold chevrons bracketing the prize, the outer one fainter. */
+function Chevrons({ side, delay, ease }) {
+    const left = side === 'left';
+    const marks = left ? ['‹', '‹'] : ['›', '›'];
+
+    return (
+        <motion.span
+            aria-hidden="true"
+            initial={{ opacity: 0, x: left ? '0.6em' : '-0.6em' }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 1, delay, ease }}
+            className="flex shrink-0 select-none items-center font-script font-medium leading-none text-gold"
+            style={{ fontSize: `clamp(1.6rem,min(${vw(3.8)},${vh(6.2)}),3.4rem)`, gap: '0.05em', filter: 'drop-shadow(0 0 10px rgba(212,175,55,0.6))' }}
+        >
+            <span className={left ? 'opacity-45' : ''}>{marks[0]}</span>
+            <span className={left ? '' : 'opacity-45'}>{marks[1]}</span>
+        </motion.span>
     );
 }
 

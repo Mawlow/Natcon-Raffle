@@ -153,102 +153,97 @@ export function PrizeWithPhoto({ raffle }) {
 }
 
 /**
- * The glowing prize frame alone: the item, or the cash amount. Nothing until
- * the prize is set. `bare` drops the frame for the marquee lettering of the
- * Prize Display (see BarePrize).
+ * The prize lettering alone: the item, or the cash amount, as ivory plate
+ * lettering between gold chevrons (see BarePrize). Nothing until the prize
+ * is set. `bare` is the Prize Display, which has no title of its own, so the
+ * event's name is lettered small above the prize there.
  */
 export function PrizeLine({ raffle, bare = false }) {
     const prizeValue = formatPrizeValue(raffle.prize_value, raffle.prize_currency);
 
     if (!raffle.prize_name) return null;
 
-    if (bare) {
-        const text = raffle.prize_type === 'item' || !prizeValue ? raffle.prize_name : `${prizeValue} CASH PRIZE`;
+    const text = raffle.prize_type === 'item' || !prizeValue ? raffle.prize_name : `${prizeValue} CASH PRIZE`;
 
-        return <BarePrize name={text} value={raffle.prize_type === 'item' ? prizeValue : null} />;
-    }
-
-    return raffle.prize_type === 'item'
-        ? <ItemPrize name={raffle.prize_name} value={prizeValue} />
-        : <CashPrize name={raffle.prize_name} value={prizeValue} />;
+    return <BarePrize name={text} value={raffle.prize_type === 'item' ? prizeValue : null} eyebrow={bare} />;
 }
 
 /**
- * The prize as marquee lettering with no box around it: the name in gold
- * foil with a light passing through the letters, a hairline running out
- * from each side with a small diamond at its end, a glowing rule beneath,
- * and the value (if any) in script under that.
+ * The prize as marquee lettering with no box around it. The event's name
+ * sits small above in gold foil; the prize itself is set apart from it as
+ * ivory plate lettering edged in gold, held between a pair of gold chevron
+ * brackets, over a twin rule with a diamond clasp, and the value (if any)
+ * in script under that.
  */
-function BarePrize({ name, value }) {
+function BarePrize({ name, value, eyebrow = true }) {
     const ease = [0.22, 1, 0.36, 1];
 
     return (
-        <div className="flex w-full flex-col items-center">
+        <div className={`flex w-full flex-col items-center ${eyebrow ? '' : 'mt-[1.5cqh]'}`}>
             {/* The event's name above the prize, half the prize's size. */}
-            <motion.p
+            {eyebrow && <motion.p
                 initial={{ opacity: 0, y: 8, letterSpacing: '0.4em' }}
                 animate={{ opacity: 1, y: 0, letterSpacing: '0.28em' }}
                 transition={{ duration: 1.1, delay: 0.3, ease }}
-                className="prize-shine mb-[0.9cqw] shrink-0 pl-[0.28em] text-center font-lux font-bold uppercase leading-none"
-                style={{ fontSize: 'min(2.7cqw, 5cqh)' }}
+                className="prize-shine mb-[1.1cqw] shrink-0 pl-[0.28em] text-center font-lux font-bold uppercase leading-none"
+                style={{ fontSize: 'min(2.4cqw, 4.5cqh)' }}
             >
                 NATCON Raffle
-            </motion.p>
-            <div className="flex w-full items-center justify-center gap-[1.6cqw]">
+            </motion.p>}
+
+            <div className="relative flex w-full items-center justify-center gap-[1.4cqw]">
+                {/* A soft pool of gold light behind the lettering. */}
                 <motion.span
                     aria-hidden="true"
-                    initial={{ opacity: 0, scaleX: 0 }}
-                    animate={{ opacity: 1, scaleX: 1 }}
-                    transition={{ duration: 1.1, delay: 0.7, ease }}
-                    className="flex min-w-0 flex-1 origin-right items-center justify-end gap-[0.6cqw]"
-                    style={{ maxWidth: '22cqw' }}
-                >
-                    <span className="h-px flex-1 bg-gradient-to-r from-transparent via-gold/50 to-gold" />
-                    <Diamond />
-                </motion.span>
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: [0.5, 0.85, 0.5] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-[180%] w-[70cqw] -translate-x-1/2 -translate-y-1/2 rounded-[100%] bg-[radial-gradient(closest-side,rgba(212,175,55,0.22),rgba(212,175,55,0.06)_55%,transparent)] [will-change:opacity]"
+                />
+
+                <Chevrons side="left" delay={0.75} ease={ease} />
 
                 <motion.p
-                    initial={{ opacity: 0, y: 10, letterSpacing: '0.3em' }}
-                    animate={{ opacity: 1, y: 0, letterSpacing: '0.16em' }}
-                    transition={{ duration: 1.1, delay: 0.5, ease }}
-                    className="prize-shine shrink-0 text-balance pl-[0.16em] text-center font-lux font-bold uppercase leading-[1.05]"
-                    style={{ fontSize: 'min(5.4cqw, 10cqh)', maxWidth: '72cqw' }}
+                    initial={{ opacity: 0, scale: 0.86, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 1.2, delay: 0.5, ease }}
+                    className="prize-ivory relative shrink-0 text-balance pl-[0.06em] text-center font-lux font-black uppercase leading-[1.02] tracking-[0.05em]"
+                    style={{ fontSize: 'min(6cqw, 11cqh)', maxWidth: '70cqw' }}
                 >
                     {name}
                 </motion.p>
 
-                <motion.span
-                    aria-hidden="true"
-                    initial={{ opacity: 0, scaleX: 0 }}
-                    animate={{ opacity: 1, scaleX: 1 }}
-                    transition={{ duration: 1.1, delay: 0.7, ease }}
-                    className="flex min-w-0 flex-1 origin-left items-center gap-[0.6cqw]"
-                    style={{ maxWidth: '22cqw' }}
-                >
-                    <Diamond />
-                    <span className="h-px flex-1 bg-gradient-to-l from-transparent via-gold/50 to-gold" />
-                </motion.span>
+                <Chevrons side="right" delay={0.75} ease={ease} />
             </div>
 
-            {/* A glowing rule beneath the lettering, like the floor line under the prize. */}
-            <motion.span
+            {/* A twin rule beneath: a fine gold hairline, a short bright bar
+                and a diamond clasp at the centre. */}
+            <motion.div
                 aria-hidden="true"
                 initial={{ opacity: 0, scaleX: 0.3 }}
-                animate={{ opacity: [0.7, 1, 0.7], scaleX: 1 }}
-                transition={{ opacity: { duration: 3.2, repeat: Infinity, ease: 'easeInOut' }, scaleX: { duration: 1.2, delay: 0.8, ease } }}
-                className="mt-[1.2cqh] h-px w-[36cqw]"
-                style={{
-                    background: 'linear-gradient(90deg, transparent, rgba(255,232,160,0.9) 30%, rgba(255,244,210,1) 50%, rgba(255,232,160,0.9) 70%, transparent)',
-                    boxShadow: '0 0 10px 2px rgba(255,220,120,0.45), 0 0 28px 6px rgba(212,175,55,0.25)',
-                }}
-            />
+                animate={{ opacity: 1, scaleX: 1 }}
+                transition={{ duration: 1.2, delay: 0.9, ease }}
+                className="relative mt-[1.6cqh] flex w-[44cqw] flex-col items-center gap-[0.5cqh]"
+            >
+                <span className="h-px w-full bg-gradient-to-r from-transparent via-gold/70 to-transparent" />
+                <span
+                    className="h-[0.35cqh] w-[18cqw] rounded-full"
+                    style={{
+                        background: 'linear-gradient(90deg, transparent, rgba(245,215,110,0.9) 25%, rgba(255,250,235,1) 50%, rgba(245,215,110,0.9) 75%, transparent)',
+                        boxShadow: '0 0 12px 2px rgba(255,225,140,0.5), 0 0 30px 6px rgba(212,175,55,0.25)',
+                    }}
+                />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-gold-bright bg-black shadow-[0_0_12px_rgba(255,232,160,0.8)]" style={{ width: '0.9cqw', height: '0.9cqw' }}>
+                    <span className="absolute inset-[22%] bg-gold-bright" />
+                </span>
+            </motion.div>
 
             {value && (
                 <motion.p
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ duration: 0.8, delay: 1 }}
-                    className="prize-gradient mt-[1.2cqh] font-script font-semibold italic"
+                    transition={{ duration: 0.8, delay: 1.1 }}
+                    className="prize-gradient mt-[1.4cqh] font-script font-semibold italic"
                     style={{ fontSize: 'min(2.7cqw, 5.1cqh)' }}
                 >
                     worth {value}
@@ -258,60 +253,26 @@ function BarePrize({ name, value }) {
     );
 }
 
-/** A glowing gold frame that breathes gently, around the prize. */
-function PrizeFrame({ children, className = '' }) {
+/**
+ * A pair of gold chevrons bracketing the prize name, the outer one fainter,
+ * sliding in from its side. Mirrored for the right-hand pair.
+ */
+function Chevrons({ side, delay, ease }) {
+    const left = side === 'left';
+    const marks = left ? ['‹', '‹'] : ['›', '›'];
+
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.9, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className={`relative mt-[1.5cqh] ${className}`}
+        <motion.span
+            aria-hidden="true"
+            initial={{ opacity: 0, x: left ? '0.6em' : '-0.6em' }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 1, delay, ease }}
+            className="flex shrink-0 select-none items-center font-script font-medium leading-none text-gold"
+            style={{ fontSize: 'min(5cqw, 9cqh)', gap: '0.05em', filter: 'drop-shadow(0 0 10px rgba(212,175,55,0.6))' }}
         >
-            <motion.span
-                aria-hidden="true"
-                animate={{ opacity: [0.55, 1, 0.55] }}
-                transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-                className="pointer-events-none absolute -inset-4 rounded-full bg-[radial-gradient(closest-side,rgba(212,175,55,0.24),rgba(212,175,55,0.08)_60%,transparent)] [will-change:opacity]"
-            />
-            <div className="relative flex flex-wrap items-center justify-center gap-x-[2cqw] gap-y-[0.5cqh] rounded-full border border-gold/50 bg-gradient-to-b from-gold/[0.14] to-black/50 px-[4cqw] py-[1.5cqh] shadow-[0_0_0_1px_rgba(212,175,55,0.12),0_10px_40px_-10px_rgba(212,175,55,0.55),inset_0_1px_0_rgba(255,244,201,0.25)]">
-                {children}
-            </div>
-        </motion.div>
+            <span className={left ? 'opacity-45' : ''}>{marks[0]}</span>
+            <span className={left ? '' : 'opacity-45'}>{marks[1]}</span>
+        </motion.span>
     );
 }
 
-/** Cash: the amount in engraved capitals, the prize name in script. */
-/** Cash: the amount and "CASH PRIZE" as one line — "₱1,000 CASH PRIZE". */
-function CashPrize({ name, value }) {
-    return (
-        <PrizeFrame>
-            <p className="prize-gradient pl-[0.14em] font-lux font-bold uppercase leading-tight tracking-[0.14em]" style={{ fontSize: 'min(4.25cqw, 8cqh)' }}>
-                {value ? `${value} CASH PRIZE` : name}
-            </p>
-        </PrizeFrame>
-    );
-}
-
-/** An item such as a brand new car: the item is the headline, its value (if any) beneath. */
-function ItemPrize({ name, value }) {
-    return (
-        <div className="flex flex-col items-center">
-            <PrizeFrame>
-                <p className="prize-gradient pl-[0.12em] font-lux font-bold uppercase leading-tight tracking-[0.12em]" style={{ fontSize: 'min(4.7cqw, 8.5cqh)' }}>
-                    {name}
-                </p>
-            </PrizeFrame>
-            {value && (
-                <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.8, delay: 0.9 }}
-                    className="mt-[2.5cqh] font-script font-semibold italic prize-gradient"
-                    style={{ fontSize: 'min(2.7cqw, 5.1cqh)' }}
-                >
-                    worth {value}
-                </motion.p>
-            )}
-        </div>
-    );
-}

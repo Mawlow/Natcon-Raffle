@@ -72,6 +72,10 @@
 
 /* The light passing through the prize's letters on the winners page: one
  * slow pass, then a rest. */
+@keyframes prize-ivory-sheen {
+    0% { background-position: 0 0, 120% 0; }
+    35%, 100% { background-position: 0 0, -120% 0; }
+}
 @keyframes prize-shine {
     0% { background-position: 100% 0; }
     40%, 100% { background-position: 0% 0; }
@@ -231,6 +235,24 @@
 
     .gold-text-shimmer {
         animation: var(--animate-shimmer);
+    }
+
+    /* The prize name on the Prize Display: ivory lettering edged in gold —
+     * a plate engraving rather than the gold foil the NATCON RAFFLE line
+     * wears above it — with a warm light passing over it now and then. */
+    .prize-ivory {
+        background-image: linear-gradient(180deg, #ffffff 0%, #fffaf0 35%, #f3e6c4 60%, #e2cf9a 78%, #fff6dc 100%),
+            linear-gradient(100deg, transparent 35%, rgb(255 255 255 / 0.85) 50%, transparent 65%);
+        background-size: 100% 100%, 300% 100%;
+        background-position: 0 0, 120% 0;
+        background-blend-mode: screen;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        -webkit-text-stroke: 0.014em rgb(212 175 55 / 0.9);
+        padding-inline-end: 0.08em;
+        filter: drop-shadow(0 0.04em 0 rgb(122 92 20 / 0.9)) drop-shadow(0 0.08em 0.02em rgb(0 0 0 / 0.55)) drop-shadow(0 0 0.35em rgb(255 232 160 / 0.45));
+        animation: prize-ivory-sheen 7s cubic-bezier(0.45, 0, 0.25, 1) 1.6s infinite;
     }
 
     /* The prize lettering: light on the left, running into gold on the
@@ -488,7 +510,7 @@
     .stage-beam, .gold-dust { animation: none; }
     .hashtag-float, .hashtag-glow, .hashtag-sheen { animation: none; }
     .hashtag-sheen { opacity: 0; }
-    .prize-shine { animation: none; }
+    .prize-shine, .prize-ivory { animation: none; }
     .gold-dust { opacity: 0.6; }
 }
 
