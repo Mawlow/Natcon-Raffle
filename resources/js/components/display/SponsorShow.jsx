@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Diamond, EVENT, EVENT_LOGO, EventBackdrop } from '../landing/EventScene';
 import HashtagMark from './HashtagMark';
-import { SPONSOR_SLIDES, SPONSOR_TIERS, logoStyle } from '../../lib/sponsors';
+import { SPONSOR_SLIDES, SPONSOR_TIERS, logoScale } from '../../lib/sponsors';
 
 const EASE = [0.22, 1, 0.36, 1];
 
@@ -156,8 +156,8 @@ function LogoWall({ slide }) {
                 >
                     {/* Held to its box, however tall the logo. */}
                     <span className="relative size-full">
-                        {/* A logo with a lot of empty space round its artwork is drawn larger, and a dark one is outlined in white (see lib/sponsors). */}
-                        <img src={src} alt="" className="absolute inset-0 size-full object-contain" style={logoStyle(src)} draggable={false} />
+                        {/* A logo with a lot of empty space round its artwork is drawn larger (see lib/sponsors). */}
+                        <img src={src} alt="" className="absolute inset-0 size-full object-contain" style={logoScale(src) !== 1 ? { transform: `scale(${logoScale(src)})` } : undefined} draggable={false} />
                     </span>
                 </motion.li>
             ))}

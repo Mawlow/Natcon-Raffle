@@ -98,6 +98,7 @@ export const SPONSOR_TIERS = [
             '85db5943-d221-4263-874e-8575428f80cd', // Jiprop
             '82b3ab4c-5dbd-488e-b726-5ee8367a3e27', // DBHR Brokerage
             '356fe151-abae-4f66-ac1c-2e235bcda12c', // Island Hills Land
+            '7e0f9b68-6838-4d6f-be81-5f7ad933b105', // Damosa Land
         ]),
     },
 ];
@@ -128,33 +129,7 @@ const LOGO_SCALE = {
 };
 
 /** How much larger to draw a sponsor logo (1 for most). */
-export const logoScale = (src) => LOGO_SCALE[logoId(src)] ?? 1;
-
-/**
- * Logos whose dark artwork sinks into the dark backdrop, drawn with a thin
- * white outline so they read clearly: a ring of white drop-shadows cast in
- * eight directions, which traces the edge of the artwork's transparent file.
- */
-const LOGO_OUTLINE = new Set([
-    'a04ead54-6361-4d6e-ad6d-710c2b03b81c', // Sterling Land (dark green wordmark)
-]);
-
-const OUTLINE_FILTER = ['0 -1px', '1px -1px', '1px 0', '1px 1px', '0 1px', '-1px 1px', '-1px 0', '-1px -1px']
-    .map((offset) => `drop-shadow(${offset} 0 rgba(255,255,255,0.95))`)
-    .join(' ');
-
-/** The CSS filter that outlines a sponsor logo in white, or undefined for most. */
-export const logoOutline = (src) => (LOGO_OUTLINE.has(logoId(src)) ? OUTLINE_FILTER : undefined);
-
-/** The inline styles a sponsor logo's <img> needs beyond its box: its scale and outline, if any. */
-export const logoStyle = (src) => {
-    const scale = logoScale(src);
-    const filter = logoOutline(src);
-    if (scale === 1 && !filter) return undefined;
-    return { ...(scale !== 1 ? { transform: `scale(${scale})` } : {}), ...(filter ? { filter } : {}) };
-};
-
-const logoId = (src) => src.slice(src.lastIndexOf('/') + 1, -'.webp'.length);
+export const logoScale = (src) => LOGO_SCALE[src.slice(src.lastIndexOf('/') + 1, -'.webp'.length)] ?? 1;
 
 /**
  * The show's slides: each tier split into as few slides as its `perSlide`

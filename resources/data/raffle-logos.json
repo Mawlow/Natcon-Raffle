@@ -183,7 +183,8 @@
     "label": "Sterling Land Residences and Development Inc",
     "path": "/images/logos/developers/sterling-land-residences-and-development-inc.png",
     "tone": "light",
-    "stage_path": "/images/logos/developers/sterling-land-residences-and-development-inc.png"
+    "stage_path": "/images/logos/developers/sterling-land-residences-and-development-inc.png",
+    "outline": true
   },
   {
     "id": "developers/vcdu-realty-corporation",
@@ -762,7 +763,8 @@
     "label": "STERLING LAND",
     "path": "/images/logos/major/sterling-land.png",
     "tone": "dark",
-    "stage_path": "/images/logos/major/sterling-land.png"
+    "stage_path": "/images/logos/major/sterling-land.png",
+    "outline": true
   },
   {
     "id": "major/weecomm",

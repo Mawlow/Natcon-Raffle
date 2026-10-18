@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play, Presentation, Trophy } from 'lucide-react';
-import { DEFAULT_SPONSOR_LOGO_SIZE, SPONSOR_INTERVALS, SPONSOR_LOGO_SIZE_MAX, SPONSOR_LOGO_SIZE_MIN, SPONSOR_SLIDES, SPONSOR_TIERS, clampSponsorLogoSize, logoStyle } from '../../lib/sponsors';
+import { DEFAULT_SPONSOR_LOGO_SIZE, SPONSOR_INTERVALS, SPONSOR_LOGO_SIZE_MAX, SPONSOR_LOGO_SIZE_MIN, SPONSOR_SLIDES, SPONSOR_TIERS, clampSponsorLogoSize, logoScale } from '../../lib/sponsors';
 import { SizeSlider } from './LogoSizePanel';
 
 /**
@@ -117,7 +117,7 @@ function SponsorShowPanel({ main, mainConnected, midDraw, post }) {
                         <div className="mt-3 flex flex-wrap gap-1.5">
                             {current.logos.map((src) => (
                                 <span key={src} className="relative h-10 w-16 overflow-hidden rounded-md bg-[#f4e6bd] ring-1 ring-gold/50">
-                                    <img src={src} alt="" className="absolute inset-1 size-[calc(100%-0.5rem)] object-contain" style={logoStyle(src)} />
+                                    <img src={src} alt="" className="absolute inset-1 size-[calc(100%-0.5rem)] object-contain" style={logoScale(src) !== 1 ? { transform: `scale(${logoScale(src)})` } : undefined} />
                                 </span>
                             ))}
                         </div>
